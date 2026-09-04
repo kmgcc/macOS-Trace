@@ -38,10 +38,10 @@ Profiling Options:
 
 Examples:
   # Profile running app for 60s with Power Profiler and parse results:
-  $(basename "$0") --process kmgccc_player --template power --duration 60s
+  $(basename "$0") --process MyApp --template power --duration 60s
 
   # Profile allocations for 45s:
-  $(basename "$0") --process kmgccc_player --template alloc --duration 45s
+  $(basename "$0") --process MyApp --template alloc --duration 45s
 
   # Cold-launch binary under Time Profiler for 20s:
   $(basename "$0") --launch /path/to/MyApp.app/Contents/MacOS/MyApp --template time --duration 20s
@@ -99,17 +99,17 @@ done
 
 # Check prerequisites
 if ! command -v xcrun &>/dev/null; then
-  echo "Error: 'xcrun' command not found. Ensure Xcode Command Line Tools are installed (xcode-select --install)." >&2
+  echo "[ERROR] 'xcrun' not found. Install Xcode Command Line Tools via: xcode-select --install" >&2
   exit 1
 fi
 
 if ! xcrun xctrace version &>/dev/null; then
-  echo "Error: 'xctrace' is not functional. Ensure Xcode or Command Line Tools are active." >&2
+  echo "[ERROR] 'xctrace' is not functional. Ensure Xcode or Command Line Tools are active." >&2
   exit 1
 fi
 
 if [[ -z "$PROCESS" && -z "$LAUNCH_CMD" ]]; then
-  echo "Error: You must specify either --process <name|pid> or --launch <binary_path>." >&2
+  echo "[ERROR] You must specify either --process <name|pid> or --launch <binary_path>." >&2
   echo "Run '$(basename "$0") --help' for usage." >&2
   exit 1
 fi
@@ -128,18 +128,16 @@ if [[ -n "$PROCESS" ]]; then
     TARGET_NAME="pid$TARGET_PID"
   else
     TARGET_NAME="$PROCESS"
-    # Find newest PID matching process name
     FOUND_PIDS=($(pgrep -x "$PROCESS" || true))
     if [[ ${#FOUND_PIDS[@]} -eq 0 ]]; then
-      # Try substring match if exact fails
       FOUND_PIDS=($(pgrep -f "$PROCESS" || true))
     fi
 
     if [[ ${#FOUND_PIDS[@]} -eq 0 ]]; then
-      echo "Error: No running process found matching '$PROCESS'." >&2
+      echo "[ERROR] No running process found matching '$PROCESS'." >&2
       exit 1
     elif [[ ${#FOUND_PIDS[@]} -gt 1 ]]; then
-      echo "Warning: Multiple processes found matching '$PROCESS' (${FOUND_PIDS[*]}). Attaching to latest PID: ${FOUND_PIDS[-1]}"
+      echo "[WARN] Multiple processes found matching '$PROCESS' (${FOUND_PIDS[*]}). Attaching to latest PID: ${FOUND_PIDS[-1]}"
       TARGET_PID="${FOUND_PIDS[-1]}"
     else
       TARGET_PID="${FOUND_PIDS[0]}"
@@ -177,44 +175,43 @@ else
 fi
 
 echo ""
-echo " Trace recorded successfully to: $TRACE_FILE"
+echo "[INFO] Trace recorded: $TRACE_FILE"
 
 # Post-processing / analysis
 if [[ $AUTO_ANALYZE -eq 1 ]]; then
   if [[ "$TEMPLATE" == "Power Profiler" ]]; then
     XML_FILE="${OUTPUT_DIR}/${LABEL}-${TIMESTAMP}-power.xml"
-    echo " Exporting Power Impact table to XML..."
+    echo "[INFO] Exporting ProcessSubsystemPowerImpact table to XML..."
     xcrun xctrace export \
       --input "$TRACE_FILE" \
       --xpath "/trace-toc/run[@number='1']/data/table[@schema='ProcessSubsystemPowerImpact']" \
       > "$XML_FILE" 2>/dev/null || {
-        echo "Note: ProcessSubsystemPowerImpact table not present or export returned non-zero."
+        echo "[WARN] ProcessSubsystemPowerImpact table not present or export returned non-zero."
       }
 
     if [[ -f "$XML_FILE" && -s "$XML_FILE" ]]; then
-      echo " Parsing Power Impact metrics..."
+      echo "[INFO] Parsing Power Impact metrics..."
       python3 "${SCRIPT_DIR}/parse_power.py" "$XML_FILE" "$LABEL"
     fi
 
   elif [[ "$TEMPLATE" == "Allocations" ]]; then
     XML_FILE="${OUTPUT_DIR}/${LABEL}-${TIMESTAMP}-alloc.xml"
-    echo " Exporting Allocations table to XML..."
+    echo "[INFO] Exporting all-allocations-summary table to XML..."
     xcrun xctrace export \
       --input "$TRACE_FILE" \
       --xpath "/trace-toc/run[@number='1']/data/table[@schema='all-allocations-summary']" \
       > "$XML_FILE" 2>/dev/null || {
-        echo "Note: all-allocations-summary table not present or export returned non-zero."
+        echo "[WARN] all-allocations-summary table not present or export returned non-zero."
       }
 
-    # Extract numeric seconds from duration for rate computation
     DURATION_SEC=$(echo "$DURATION" | sed 's/[^0-9]//g')
     if [[ -z "$DURATION_SEC" ]]; then DURATION_SEC=60; fi
 
     if [[ -f "$XML_FILE" && -s "$XML_FILE" ]]; then
-      echo " Parsing allocation categories..."
+      echo "[INFO] Parsing allocation categories..."
       python3 "${SCRIPT_DIR}/top_categories.py" "$XML_FILE" "$DURATION_SEC" 10.0
     fi
   fi
 fi
 
-echo " Profiling session complete."
+echo "[INFO] Profiling session complete."
