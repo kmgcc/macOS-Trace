@@ -5,7 +5,7 @@ compatibility: "macOS 12+, Xcode Command Line Tools, Python 3.8+"
 license: MIT
 metadata:
   author: kmgcc
-  version: "1.2.1"
+  version: "1.2.2"
 ---
 
 # macOS-Trace: Autonomous Application Performance Optimization
@@ -86,6 +86,11 @@ Follow these non-negotiable rules during automated profiling:
    - **Do not unilaterally remove or downgrade the visual feature.**
    - **Formally ask the user for permission first** (using an interactive prompt or explicit chat message).
    - **Clearly articulate the tradeoff**: Describe the visual change before and after, explain why the feature consumes resources, and present the concrete expected performance gain (e.g., "Disabling dynamic background blur will reduce active GPU impact from 1.5 to 0.2 and save ~50 M/s CPU instructions").
+10. **Clean up recording artifacts**: Every `xctrace` recording writes several-GB transient kernel traces (`instruments*.ktrace`) and an Instruments CLI cache (`C/com.apple.dt.InstrumentsCLI`) into the per-user system temp folder (`$TMPDIR`). `scripts/run_trace.sh` removes them automatically on exit (both on success and failure). When running `xctrace` directly, clean them yourself before concluding:
+    ```bash
+    find "${TMPDIR:-/tmp}" -maxdepth 1 -type f -name 'instruments*.ktrace' -delete 2>/dev/null || true
+    ```
+    Never finish a session leaving hundreds of GB of transient recording data behind.
 
 ---
 
@@ -162,6 +167,8 @@ Differential vs Baseline [Idle Baseline]:
 #### Decision Gate:
 - **If target met** (e.g. instruction rate dropped from 270 M/s to 80 M/s, satisfying the < 100 M/s goal): Present the before/after empirical report to the user and conclude.
 - **If target not met**: Isolate the remaining bottleneck and begin the next iteration cycle.
+
+**Post-Report Cleanup**: After the user accepts the final optimization report, delete the accumulated `.trace` bundles under `/tmp/macos-traces/` (each can be tens of GB) unless the user explicitly asks to keep them. The finalized comparison table and `.xml` exports shown in the report are sufficient evidence.
 
 ---
 
