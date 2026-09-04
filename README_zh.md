@@ -8,6 +8,8 @@
 [![Python](https://img.shields.io/badge/Python-3.8%2B_(Zero_Deps)-3776AB.svg)](https://www.python.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
+> 如需对 iOS 及 iPadOS 应用（真机与模拟器）进行性能分析，请参考 [iOS-Trace](https://github.com/kmgcc/iOS-Trace)。
+
 基于 `xctrace` 与 Xcode Instruments 的 macOS 原生应用无头（Headless）性能诊断与客观 A/B 差值量化工具链。
 
 专为 **AI 编码 Agent**（Claude Code、OpenAI Codex、Cursor、Google Antigravity、GitHub Copilot）及 **macOS 研发工程师** 设计。无需开启 Instruments 图形界面，即可在终端或自动化流水线中完成 Trace 采集、XPath 数据表精准提取、量化指标解析与优化前后对比。

@@ -8,6 +8,8 @@
 [![Python](https://img.shields.io/badge/Python-3.8%2B_(Zero_Deps)-3776AB.svg)](https://www.python.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
+> Looking for iOS and iPadOS profiling on physical devices or simulators? See [iOS-Trace](https://github.com/kmgcc/iOS-Trace).
+
 Headless profiling and quantitative A/B benchmarking toolchain for macOS applications using `xctrace` and Xcode Instruments.
 
 Designed for AI coding agents (Claude Code, OpenAI Codex, Cursor, Google Antigravity, GitHub Copilot) and macOS systems engineers. It automates trace collection, table data extraction via XPath, and differential performance analysis without opening the Instruments GUI.
