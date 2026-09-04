@@ -1,11 +1,11 @@
 ---
 name: macos-trace
-description: Autonomous closed-loop performance optimization engine for macOS applications using xctrace and Xcode Instruments. Handles the full lifecycle: aligning optimization targets with the user, headless diagnostic trace capture, isolating hotspots, implementing code fixes, re-testing with differential A/B verification, and iterating until performance goals are met without manual GUI intervention. Use when the user reports high CPU usage, memory growth or leaks, UI stutter or dropped frames, slow cold launch, audio dropouts, or thermal issues in a macOS application, and asks to profile, benchmark, or optimize it.
-compatibility: macOS 12+, Xcode Command Line Tools, Python 3.8+
+description: "Autonomous closed-loop performance optimization engine for macOS applications using xctrace and Xcode Instruments. Handles the full lifecycle: aligning optimization targets with the user, headless diagnostic trace capture, isolating hotspots, implementing code fixes, re-testing with differential A/B verification, and iterating until performance goals are met without manual GUI intervention. Use when the user reports high CPU usage, memory growth or leaks, UI stutter or dropped frames, slow cold launch, audio dropouts, or thermal issues in a macOS application, and asks to profile, benchmark, or optimize it."
+compatibility: "macOS 12+, Xcode Command Line Tools, Python 3.8+"
 license: MIT
 metadata:
   author: kmgcc
-  version: "1.2.0"
+  version: "1.2.1"
 ---
 
 # macOS-Trace: Autonomous Application Performance Optimization
