@@ -1,18 +1,65 @@
 ---
 name: macos-trace
-description: Profile macOS applications headlessly using xctrace and Xcode Instruments. Use when diagnosing CPU spikes, thermal throttling, UI hitching, memory leaks, high allocation rates, CoreAudio/DSP overhead, Metal shader execution costs, WebKit IPC latency, or when validating performance changes with differential A/B benchmarks.
+description: Autonomous closed-loop performance optimization engine for macOS applications using xctrace and Xcode Instruments. Handles the full lifecycle: aligning optimization targets with the user, headless diagnostic trace capture, isolating hotspots, implementing code fixes, re-testing with differential A/B verification, and iterating until performance goals are met without manual GUI intervention.
 compatibility: macOS 12+, Xcode Command Line Tools, Python 3.8+
 license: MIT
 metadata:
   author: kmgcc
-  version: "1.0.0"
+  version: "1.1.0"
 ---
 
-# macOS-Trace: Headless Performance Profiling
+# macOS-Trace: Autonomous Application Performance Optimization
 
-A workflow and toolchain for running headless Xcode Instruments profiling on macOS applications (SwiftUI, AppKit, Metal, CoreAudio, WebKit, and CLI binaries).
+`macOS-Trace` is a closed-loop performance optimization engine for native macOS applications (SwiftUI, AppKit, Metal, CoreAudio, WebKit, and native binaries).
 
-Use this skill to automate trace collection, extract data from Instruments tables into structured XML, and produce quantitative metrics and A/B comparisons without opening the Instruments GUI.
+The objective is to eliminate manual Instruments GUI interaction. An AI agent can autonomously diagnose, locate bottlenecks, implement code changes, re-test with differential benchmarking, and iterate until performance targets are verified with empirical data.
+
+```text
++-------------------------------------------------------------------------+
+|                  The Autonomous Optimization Loop                        |
+|                                                                         |
+|  1. Goal Alignment ──> 2. Diagnostic Trace ──> 3. Targeted Code Fix     |
+|         ^                                                 │             |
+|         │                                                 ▼             |
+|         └────── Iterate if Target Not Met <── 4. Re-test Verification   |
++-------------------------------------------------------------------------+
+```
+
+---
+
+## Phase 1: User Goal Alignment (Pre-Flight Questionnaire)
+
+Before modifying code or collecting traces, the agent must align with the user on optimization targets and success criteria.
+
+### Modal Tool vs Chat Interaction
+- **If your agent platform provides an interactive questionnaire/modal tool** (e.g., `ask_question`, input dialogs, or selectable option lists), invoke it to present these choices cleanly to the user.
+- **If no modal tool is available**, ask the user directly in the conversation with structured options and concrete recommended values.
+
+### Questions to Ask the User
+
+1. **Primary Optimization Objective**:
+   - Option A: Reduce CPU utilization, power consumption, and thermal throttling.
+   - Option B: Lower memory footprint, transient allocation spikes, or eliminate leaks.
+   - Option C: Eliminate UI frame stuttering and dropped animation frames (Hitches).
+   - Option D: Accelerate application cold launch time.
+2. **Specific Performance Targets (Provide Recommended Defaults)**:
+   - **CPU / Energy Targets**:
+     - *Idle Baseline Target*: < 20 M/s instructions, CPU Impact < 0.5.
+     - *Active Workload Target*: < 100 M/s instructions (or specify: reduce by 30% - 50%).
+   - **Memory Targets**:
+     - *Maximum Resident RAM*: Cap at < 150 MB (utilities/audio) or < 300 MB (media/rich UI).
+     - *Allocation Event Rate*: < 500 events/sec during steady-state execution.
+     - *Memory Leaks*: Exactly 0 persistent leaks.
+   - **UI Smoothness Targets**:
+     - *Hitch Ratio*: < 5.0 ms/s (acceptable), < 1.0 ms/s (fluid/no dropped frames).
+   - **Launch Time Targets**:
+     - *Time to First Frame*: < 400 ms (excellent), < 800 ms (acceptable).
+3. **Benchmark User Scenario**:
+   - Ask the user which specific screen, user interaction, or workload to benchmark.
+
+Once targets are confirmed, proceed to Phase 2.
+
+---
 
 ## Scope and Prerequisites
 
@@ -21,105 +68,118 @@ Use this skill to automate trace collection, extract data from Instruments table
 - **Python**: Python 3.8+ (pre-installed on macOS; zero external pip dependencies).
 - **Process permissions**: Debug builds or binaries with `get-task-allow` entitlement are required for `--attach <PID>` under Hardened Runtime.
 
+---
+
 ## Rules for Agents
 
-Follow these constraints when profiling or verifying performance changes:
+Follow these non-negotiable rules during automated profiling:
 
-1. **Establish a baseline first**: Never record only the active workload. Total instructions or memory figures are uninformative without subtracting background load. Always capture an idle baseline (app open in foreground, target workload paused) before recording the active state. Compute: `Delta = Active - Baseline`.
+1. **Establish a baseline first**: Never record only the active workload. Always capture an idle baseline (app open in foreground, workload paused) before recording the active state. Compute: `Delta = Active - Baseline`.
 2. **Verify target state before recording**: Check that the process exists using `pgrep -x <ProcessName>` and that the target feature is actively executing during the recording window.
 3. **Keep the window in foreground**: macOS throttles rendering and display links for occluded or minimized windows (`NSWindowOcclusionState`). An occluded window will produce falsely low GPU and CPU readings.
 4. **Use equal test parameters**: Compare runs with identical sample durations (default: `60s`), identical display scales, identical window sizes, and identical test input data. Never compare a Debug build against a Release build.
 5. **No third-party Python dependencies**: All bundled scripts (`scripts/compare_elements.py`, `scripts/parse_power.py`, `scripts/top_categories.py`) use the Python 3 standard library only. Do not install pip packages.
 6. **Save outputs to `/tmp/macos-traces/`**: Store all `.trace` bundles and `.xml` exports in `/tmp/macos-traces/` with timestamped and scenario-tagged filenames.
 
-## Standard Workflow
+---
 
-### 1. Pre-Flight
+## The 4-Phase Optimization Protocol
+
+### Phase 2: Diagnostic Profiling & Attribution
+
+Before writing code, measure the current state and isolate the root cause:
 
 ```bash
-# Verify tooling
-xcrun xctrace version
-python3 --version
-
-# Prepare output directory
-mkdir -p /tmp/macos-traces
-
-# Find target PID
+# 1. Pre-flight check
 APP_NAME="YourApp"
 PID=$(pgrep -x "$APP_NAME")
-echo "PID: $PID"
+SKILL_DIR=".agents/skills/macos-trace"
+
+# 2. Record 60s idle baseline (workload paused, window visible)
+"$SKILL_DIR/scripts/run_trace.sh" --process "$PID" --template power --duration 60s --label "01-baseline"
+
+# 3. Trigger workload in app, record active state
+"$SKILL_DIR/scripts/run_trace.sh" --process "$PID" --template power --duration 60s --label "02-pre-opt"
+
+# 4. Compute pre-optimization delta
+python3 "$SKILL_DIR/scripts/compare_elements.py" \
+  /tmp/macos-traces/01-baseline-power.xml:"Idle Baseline" \
+  /tmp/macos-traces/02-pre-opt-power.xml:"Active Pre-Opt"
 ```
 
-### 2. Record and Analyze (Using `scripts/run_trace.sh`)
+Use the specialized templates to attribute the bottleneck:
+- Run `--template time` to isolate hot call-tree functions.
+- Run `--template alloc` with `scripts/top_categories.py` to identify thrashing allocations.
+- Run `--template hitches` during scrolling to isolate render vs commit delays.
 
-The script wraps `xcrun xctrace record`, `xcrun xctrace export`, and the Python parser into a single command:
+### Phase 3: Targeted Code Modification
+
+Apply minimal, surgical fixes based on findings:
+- Real-time audio threads allocating heap memory? Replace with pre-allocated lock-free ring buffers.
+- WebKit IPC saturated? Throttle state updates and switch to CSS transform animations.
+- Metal fragment shader overdrawing on Retina? Add dynamic resolution scaling or pause offscreen render loops.
+- High-resolution image decoding spikes? Adopt `CGImageSourceCreateThumbnailAtIndex` downsampling.
+
+Rebuild the application.
+
+### Phase 4: Re-Test, Quantitative Review & Decision Gate
+
+Rerun the profile under identical conditions and evaluate the delta:
 
 ```bash
-# Step 1: Record 60s idle baseline
-./scripts/run_trace.sh --process "$APP_NAME" --template power --duration 60s --label "01-idle-base"
+# 1. Record post-optimization active workload
+"$SKILL_DIR/scripts/run_trace.sh" --process "$PID" --template power --duration 60s --label "03-post-opt"
 
-# Step 2: Trigger the workload in the app, then record 60s active state
-./scripts/run_trace.sh --process "$APP_NAME" --template power --duration 60s --label "02-active-workload"
+# 2. Compare Pre-Opt vs Post-Opt against Baseline
+python3 "$SKILL_DIR/scripts/compare_elements.py" \
+  /tmp/macos-traces/01-baseline-power.xml:"Idle Baseline" \
+  /tmp/macos-traces/02-pre-opt-power.xml:"Active Pre-Opt" \
+  /tmp/macos-traces/03-post-opt-power.xml:"Active Post-Opt"
 ```
 
-### 3. Compute A/B Differential
-
-Pass the exported XML files to `scripts/compare_elements.py`. The first file is treated as the reference baseline:
-
-```bash
-python3 scripts/compare_elements.py \
-  /tmp/macos-traces/01-idle-base-power.xml:"Idle Baseline" \
-  /tmp/macos-traces/02-active-workload-power.xml:"Active Workload"
-```
-
-Example output:
+Example Decision Output:
 ```text
 Scenario                    Sec  CPU Avg  CPU Max  Display  GPU Avg  Total Instr    Instr M/s
 ============================================================================================
 Idle Baseline                60     0.15     0.80     0.05     0.00        1.02G         17.0
-Active Workload              60     1.85     3.40     0.90     1.20       12.60G        210.0
+Active Pre-Opt               60     2.40     4.80     1.10     1.50       16.20G        270.0
+Active Post-Opt              60     0.65     1.20     0.25     0.10        4.80G         80.0
 --------------------------------------------------------------------------------------------
 Differential vs Baseline [Idle Baseline]:
-  Active Workload              +193.0 M/s instructions, CPU Avg Delta +1.70
+  Active Pre-Opt               +253.0 M/s instructions, CPU Avg Delta +2.25
+  Active Post-Opt               +63.0 M/s instructions, CPU Avg Delta +0.50
 ```
 
-## Direct CLI Commands
+#### Decision Gate:
+- **If target met** (e.g. instruction rate dropped from 270 M/s to 80 M/s, satisfying the < 100 M/s goal): Present the before/after empirical report to the user and conclude.
+- **If target not met**: Isolate the remaining bottleneck and begin the next iteration cycle.
 
-If calling `xctrace` directly without `run_trace.sh`:
+---
 
-### Record
+## Direct CLI Reference
 
 ```bash
-# Attach to running process (preserves app state)
+# Attach to running process
 xcrun xctrace record \
   --template 'Power Profiler' \
   --time-limit 60s \
   --output /tmp/macos-traces/power.trace \
   --attach $PID
 
-# Launch executable directly
-xcrun xctrace record \
-  --template 'Time Profiler' \
-  --time-limit 30s \
-  --output /tmp/macos-traces/launch.trace \
-  --launch -- /path/to/YourApp.app/Contents/MacOS/YourApp
-```
-
-### Export
-
-```bash
 # Export Power Impact table (instructions, CPU, GPU, display)
 xcrun xctrace export \
   --input /tmp/macos-traces/power.trace \
   --xpath "/trace-toc/run[@number='1']/data/table[@schema='ProcessSubsystemPowerImpact']" \
   > /tmp/macos-traces/power.xml
 
-# Export Allocations summary table (heap allocation counts and bytes by category)
+# Export Allocations summary table
 xcrun xctrace export \
   --input /tmp/macos-traces/alloc.trace \
   --xpath "/trace-toc/run[@number='1']/data/table[@schema='all-allocations-summary']" \
   > /tmp/macos-traces/alloc.xml
 ```
+
+---
 
 ## Template Reference
 
@@ -158,22 +218,24 @@ Instruments templates supported by `scripts/run_trace.sh` and headless `xctrace`
 | `File Activity` | `files` / `io` | File open/read/write/close calls, I/O latency, throughput. | Disk I/O bottlenecks, database (SwiftData/SQLite) stalls, and asset loading. |
 | `Audio System Trace` | `audio` | CoreAudio HAL IO thread jitter, audio buffer overruns/underruns (XRuns/glitches). | Audio dropouts, buffer underruns, and real-time audio pipeline instability. |
 
+---
+
 ## Subsystem Optimization Notes
 
 ### Real-Time Audio & DSP (CoreAudio / AVAudioEngine)
 - **Zero heap allocation**: Code inside `AURenderCallback` or `AVAudioNodeTap` must not allocate heap memory (`malloc`, Swift `Array` reallocations, object creation) or acquire blocking locks (`os_unfair_lock` or mutexes that can priority-invert).
 - **Buffer dispatch**: Copy audio data into a pre-allocated lock-free ring buffer. Push to background queues for FFT or level calculations.
-- **UI meter throttling**: Throttle UI updates (e.g., LED meters, waveform views) to 30Hz or 60Hz. Never post UI updates on every audio buffer arrival (which occurs at ~100-300Hz depending on buffer size).
+- **UI meter throttling**: Throttle UI updates (e.g., visualizers, waveform views) to 30Hz or 60Hz. Never post UI updates on every audio buffer arrival.
 - **Diagnosis**: Use `Allocations`. If allocation rate exceeds 500 events/sec during audio playback, inspect audio tap closures using `scripts/top_categories.py`.
 
 ### Metal & Visual FX
-- **Retina pixel fill rate**: High-DPI screens render at 2x or 3x scale. A fullscreen fragment shader (blur, bokeh, raymarching) on a 4K display shades over 16 million pixels per frame. If GPU impact is elevated, render to an offscreen half-resolution texture before compositing, or reduce sample counts.
+- **Retina pixel fill rate**: High-DPI screens render at 2x or 3x scale. A fullscreen fragment shader on a 4K display shades over 16 million pixels per frame. If GPU impact is elevated, render to an offscreen half-resolution texture before compositing, or reduce sample counts.
 - **Window occlusion**: Observe `NSWindow.occlusionState`. When `contains(.visible)` is false (window minimized or covered), pause `CVDisplayLink` or set `isPaused = true` on `MTKView`.
 - **Diagnosis**: Use `Power Profiler` (`GPU Impact` column) and `Metal System Trace`.
 
 ### WebKit & Hybrid Views
-- **IPC message rate**: Calling `evaluateJavaScript` with large JSON payloads at high frequency (e.g., 100Hz progress updates) saturates WebKit IPC and spikes CPU. Send sparse synchronization anchors (e.g., 1Hz) and let JavaScript interpolate smooth movement using `requestAnimationFrame`.
-- **DOM layout thrashing**: Continuously changing properties like `top`, `margin`, or `height` in synchronized text views forces browser layout recalculation. Use CSS `transform: translateY()` or `opacity` instead.
+- **IPC message rate**: Calling `evaluateJavaScript` with large JSON payloads at high frequency saturates WebKit IPC and spikes CPU. Send sparse synchronization anchors (e.g., 1Hz) and let JavaScript interpolate smooth movement using `requestAnimationFrame`.
+- **DOM layout thrashing**: Continuously changing properties like `top`, `margin`, or `height` in dynamic scroll or text views forces browser layout recalculation. Use CSS `transform: translateY()` or `opacity` instead.
 - **Diagnosis**: Use `Time Profiler` and search for `WebCore::RenderLayer` or IPC serialization symbols.
 
 ### UI & Memory Management
@@ -181,15 +243,16 @@ Instruments templates supported by `scripts/run_trace.sh` and headless `xctrace`
 - **SwiftUI body invalidation**: Root-level state changes trigger re-evaluation of downstream view bodies. Use `Time Profiler` to inspect repeated `View.body.getter` calls.
 - **Diagnosis**: Use `Allocations` with `scripts/top_categories.py` to identify large transient buffer spikes.
 
+---
+
 ## Script Usage
 
 ### `scripts/run_trace.sh`
-Automates record, export, and parsing:
 ```bash
 ./scripts/run_trace.sh [options]
   -p, --process <name|pid>    Target process name or PID
   -l, --launch <binary_path>  Launch binary directly
-  -t, --template <name>       power (default) | time | alloc | leaks | metal
+  -t, --template <name>       power (default) | time | alloc | leaks | metal | hitches | swiftui | concurrency | launch | files | sys | audio | counters
   -d, --duration <time>       Duration (default: 60s)
   -o, --output-dir <path>     Output directory (default: /tmp/macos-traces)
   --label <text>              Run label
@@ -197,19 +260,16 @@ Automates record, export, and parsing:
 ```
 
 ### `scripts/compare_elements.py`
-Compares multiple exported Power XML runs:
 ```bash
 python3 scripts/compare_elements.py <file1:label1> <file2:label2> [...]
 ```
 
 ### `scripts/parse_power.py`
-Parses a single Power XML file:
 ```bash
 python3 scripts/parse_power.py <path_to_xml> [label]
 ```
 
 ### `scripts/top_categories.py`
-Ranks allocation categories by event rate and size:
 ```bash
 python3 scripts/top_categories.py <path_to_xml> <duration_sec> [min_rate]
 ```

@@ -10,41 +10,73 @@
 
 > Looking for iOS and iPadOS profiling on physical devices or simulators? See [iOS-Trace](https://github.com/kmgcc/iOS-Trace).
 
-Headless profiling and quantitative A/B benchmarking toolchain for macOS applications using `xctrace` and Xcode Instruments.
+Autonomous, closed-loop application performance optimization engine for macOS applications using `xctrace` and Xcode Instruments.
 
-Designed for AI coding agents (Claude Code, OpenAI Codex, Cursor, Google Antigravity, GitHub Copilot) and macOS systems engineers. It automates trace collection, table data extraction via XPath, and differential performance analysis without opening the Instruments GUI.
+Designed for AI coding agents (Claude Code, OpenAI Codex, Cursor, Google Antigravity, GitHub Copilot) and macOS systems engineers. It completely eliminates manual Instruments GUI interaction. From a single prompt, an agent can align on optimization goals with the user, capture headless diagnostic traces, implement targeted code fixes, and re-test with differential benchmarking across multiple iterations until the user's requirements are met.
+
+---
+
+## The Autonomous Optimization Loop
+
+```text
++-------------------------------------------------------------------------+
+|                  The Autonomous Optimization Loop                        |
+|                                                                         |
+|  1. Goal Alignment ──> 2. Diagnostic Trace ──> 3. Targeted Code Fix     |
+|         ^                                                 │             |
+|         │                                                 ▼             |
+|         └────── Iterate if Target Not Met <── 4. Re-test Verification   |
++-------------------------------------------------------------------------+
+```
+
+1. **Goal Alignment**: The agent queries the user upfront (via interactive questionnaire modal if available, or direct chat) with concrete recommended thresholds.
+2. **Diagnostic Profiling**: Headless trace capture under idle baseline and active workload to isolate hot call-frames and allocation spikes.
+3. **Code Modification**: The agent implements surgical, source-level optimizations directly in the codebase.
+4. **Re-Test Verification**: Automated re-profiling under identical conditions to compute empirical Before vs After deltas.
+5. **Iteration Gate**: If the user's targets are met, deliver the final report; if not, initiate the next optimization round automatically.
+
+---
+
+## Upfront Goal Alignment (Pre-Flight Questionnaire)
+
+Before making changes or running traces, agents should align on targets with the user:
+
+- **Interactive Modal / Components**: If the agent platform provides an interactive modal or prompt tool (e.g. `ask_question`), invoke it to present selectable options. Otherwise, ask directly in conversation.
+- **Recommended Threshold Presets**:
+  - **CPU & Energy**:
+    - *Idle Baseline Target*: < 20 M/s instructions, CPU Impact < 0.5.
+    - *Active Workload Target*: < 100 M/s instructions (or reduce current CPU by 30% - 50%).
+  - **Memory Footprint**:
+    - *Maximum Resident RAM*: Cap at < 150 MB (utility/audio apps) or < 300 MB (rich UI/media apps).
+    - *Allocation Rate*: < 500 events/sec during steady-state execution.
+    - *Leaks*: 0 persistent leaks.
+  - **UI Smoothness & Hitches**:
+    - *Hitch Ratio*: < 5.0 ms/s (acceptable), < 1.0 ms/s (fluid/zero dropped frames).
+  - **Cold Launch Time**:
+    - *Time to First Frame*: < 400 ms (excellent), < 800 ms (acceptable).
 
 ---
 
 ## Prerequisites and Scope
 
-Read these system requirements and constraints before deploying or invoking this skill:
-
 ### Supported Targets
 - **macOS Native Applications Only**: Designed exclusively for macOS desktop software (SwiftUI, AppKit, Metal, CoreAudio / AVAudioEngine, WebKit native host apps, and compiled CLI binaries).
-- **Unsupported**: Not designed for iOS simulators, remote physical iPhones/iPads, watchOS/tvOS, or browser-only web applications running in external browsers.
+- **Unsupported**: Not designed for iOS simulators, remote physical iPhones/iPads, watchOS/tvOS, or browser-only web applications.
 
 ### Tooling and System Requirements
 - **macOS Version**: macOS 12.0 (Monterey) or later.
-- **Xcode & xctrace**: Full Xcode installation or Xcode Command Line Tools with `xctrace` support. Verify with:
-  ```bash
-  xcode-select -p
-  xcrun xctrace version
-  ```
-  If missing, install via `xcode-select --install` or download Xcode from the Mac App Store / Apple Developer portal.
+- **Xcode & xctrace**: Full Xcode installation or Xcode Command Line Tools with `xctrace` support (`xcrun xctrace version`).
 - **Hardware Metrics**: The `Power Profiler` template and subsystem energy impact counters (`ProcessSubsystemPowerImpact`) require Apple Silicon hardware (M1/M2/M3/M4 series).
-- **Process Entitlements**: When attaching (`--attach <PID>`) to processes built with Hardened Runtime enabled, the binary must include the `com.apple.security.get-task-allow` entitlement (standard in Debug builds). Otherwise, profiling must be performed by launching the executable directly via `--launch`.
-- **Python**: Python 3.8+ (pre-installed on macOS). All included scripts use the standard library only (`re`, `sys`, `os`, `xml.etree.ElementTree`, `collections`). No third-party pip packages are required.
+- **Process Entitlements**: Debug builds or binaries with `com.apple.security.get-task-allow` entitlement are required for `--attach <PID>`.
+- **Python**: Python 3.8+ (uses standard library only; zero external pip dependencies).
 
 ---
 
 ## Agent Installation and Integration Guide
 
-This section outlines how an AI coding agent should install, locate, and execute `macOS-Trace` within an automated repository workflow.
-
 ### 1. Skill Location Detection
 
-When an agent needs to install this skill into a repository, it should detect the existing skill directory convention in the workspace:
+When an agent needs to install this skill into a repository, it should detect the existing skill directory convention:
 
 ```bash
 # Order of preference for agent skill directories:
@@ -57,8 +89,6 @@ When an agent needs to install this skill into a repository, it should detect th
 If none exists, default to `.agents/skills/`.
 
 ### 2. Installation Commands for Agents
-
-Install into the target repository using one of the following commands:
 
 ```bash
 # Option A: Standard Agent Skills directory (Recommended)
@@ -77,93 +107,40 @@ mkdir -p ~/.agents/skills
 git clone https://github.com/kmgcc/macOS-Trace.git ~/.agents/skills/macos-trace
 ```
 
-### 3. Autonomous Execution Protocol for Agents
-
-When an agent is tasked with diagnosing a performance issue or verifying an optimization, it should execute the following 5-step protocol:
-
-```text
-Step 1: Verify Environment & Liveness
-   │    Check xcrun xctrace, verify target process exists via pgrep.
-   ▼
-Step 2: Record Idle Baseline Run
-   │    Keep window in foreground. Record 60s with workload paused.
-   ▼
-Step 3: Execute Target Workload & Record Active Run
-   │    Trigger target feature/audio/animation. Record 60s active state.
-   ▼
-Step 4: Compute Differential Delta
-   │    Run scripts/compare_elements.py to compute:
-   │    Delta = Active - Baseline.
-   ▼
-Step 5: Report Empirical Results
-        Present table with M/s instruction delta and CPU change to the user.
-```
-
-#### Protocol Command Sequence
+### 3. Complete Optimization Run Example
 
 ```bash
-# Step 1: Pre-flight check
 APP_NAME="YourApp"
 PID=$(pgrep -x "$APP_NAME")
-if [[ -z "$PID" ]]; then
-  echo "Error: Process $APP_NAME is not running." >&2
-  exit 1
-fi
-
 SKILL_DIR=".agents/skills/macos-trace"
 
-# Step 2: Record 60s idle baseline (workload paused, window visible)
+# 1. Record 60s idle baseline:
 "$SKILL_DIR/scripts/run_trace.sh" --process "$PID" --template power --duration 60s --label "01-baseline"
 
-# Step 3: Trigger the target feature in the app, then record 60s active state
-"$SKILL_DIR/scripts/run_trace.sh" --process "$PID" --template power --duration 60s --label "02-active"
+# 2. Record pre-optimization active workload:
+"$SKILL_DIR/scripts/run_trace.sh" --process "$PID" --template power --duration 60s --label "02-pre-opt"
 
-# Step 4: Run comparison
+# 3. Implement code fixes, rebuild app, then record post-optimization active workload:
+"$SKILL_DIR/scripts/run_trace.sh" --process "$PID" --template power --duration 60s --label "03-post-opt"
+
+# 4. Compare Pre-Opt vs Post-Opt against Baseline:
 python3 "$SKILL_DIR/scripts/compare_elements.py" \
-  /tmp/macos-traces/01-baseline-power.xml:"1. Idle Baseline" \
-  /tmp/macos-traces/02-active-power.xml:"2. Active Workload"
+  /tmp/macos-traces/01-baseline-power.xml:"Idle Baseline" \
+  /tmp/macos-traces/02-pre-opt-power.xml:"Active Pre-Opt" \
+  /tmp/macos-traces/03-post-opt-power.xml:"Active Post-Opt"
 ```
 
----
-
-## Workflow Architecture
-
-```text
-Target Native App (PID)
-        │
-        ▼
-xcrun xctrace record (Headless Instruments)
-        │
-        ▼
-Trace Package (.trace)
-        │
-        ▼
-xcrun xctrace export (Table-level XPath Extraction)
-        │
-        ▼
-Structured XML Tables
-        │
-        ▼
-macOS-Trace Parsers (Python 3 standard library)
-        │
-        ▼
-Quantitative Metrics & Baseline Delta (M/s, CPU %, Alloc/s)
-```
-
----
-
-## Quick Start Example
-
-Running the comparison produces an empirical differential report:
-
+Output:
 ```text
 Scenario                    Sec  CPU Avg  CPU Max  Display  GPU Avg  Total Instr    Instr M/s
 ============================================================================================
-1. Idle Baseline             60     0.15     0.80     0.05     0.00        1.02G         17.0
-2. Active Workload           60     1.85     3.40     0.90     1.20       12.60G        210.0
+Idle Baseline                60     0.15     0.80     0.05     0.00        1.02G         17.0
+Active Pre-Opt               60     2.40     4.80     1.10     1.50       16.20G        270.0
+Active Post-Opt              60     0.65     1.20     0.25     0.10        4.80G         80.0
 --------------------------------------------------------------------------------------------
-Differential vs Baseline [1. Idle Baseline]:
-  2. Active Workload           +193.0 M/s instructions, CPU Avg Delta +1.70
+Differential vs Baseline [Idle Baseline]:
+  Active Pre-Opt               +253.0 M/s instructions, CPU Avg Delta +2.25
+  Active Post-Opt               +63.0 M/s instructions, CPU Avg Delta +0.50
 ```
 
 ---
