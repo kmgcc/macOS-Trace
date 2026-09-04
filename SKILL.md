@@ -14,6 +14,13 @@ A workflow and toolchain for running headless Xcode Instruments profiling on mac
 
 Use this skill to automate trace collection, extract data from Instruments tables into structured XML, and produce quantitative metrics and A/B comparisons without opening the Instruments GUI.
 
+## Scope and Prerequisites
+
+- **Target platform**: macOS native desktop applications only (SwiftUI, AppKit, Metal, CoreAudio / AVAudioEngine, WebKit host views, native CLI executables). Does not support iOS simulators, remote mobile devices, or external browser-only web apps.
+- **Xcode tooling**: Requires macOS 12+ and full Xcode or Xcode Command Line Tools (`xcode-select -p`, `xcrun xctrace version`).
+- **Python**: Python 3.8+ (pre-installed on macOS; zero external pip dependencies).
+- **Process permissions**: Debug builds or binaries with `get-task-allow` entitlement are required for `--attach <PID>` under Hardened Runtime.
+
 ## Rules for Agents
 
 Follow these constraints when profiling or verifying performance changes:
@@ -143,7 +150,7 @@ xcrun xctrace export \
 - **Diagnosis**: Use `Time Profiler` and search for `WebCore::RenderLayer` or IPC serialization symbols.
 
 ### UI & Memory Management
-- **Image downsampling**: Decoding full-resolution images (e.g., 3000x3000px artwork) directly into `NSImage` allocates ~36MB of uncompressed bitmap memory per image. Downsample at decode time using `CGImageSourceCreateThumbnailAtIndex` with `kCGImageSourceThumbnailMaxPixelSize`.
+- **Image downsampling**: Decoding high-resolution image assets (e.g., 3000x3000px or larger raw bitmaps) directly into `NSImage` allocates ~36MB of uncompressed bitmap memory per image. Downsample at decode time using `CGImageSourceCreateThumbnailAtIndex` with `kCGImageSourceThumbnailMaxPixelSize`.
 - **SwiftUI body invalidation**: Root-level state changes trigger re-evaluation of downstream view bodies. Use `Time Profiler` to inspect repeated `View.body.getter` calls.
 - **Diagnosis**: Use `Allocations` with `scripts/top_categories.py` to identify large transient buffer spikes.
 

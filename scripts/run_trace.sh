@@ -20,7 +20,7 @@ Usage:
   $(basename "$0") [options]
 
 Target Selection (Required: choose one):
-  -p, --process <name|pid>    Target process name (e.g. 'kmgccc_player', 'Safari') or numeric PID to attach to
+  -p, --process <name|pid>    Target process name (e.g. 'MyApp', 'Safari') or numeric PID to attach to
   -l, --launch <binary_path>  Launch executable directly instead of attaching
 
 Profiling Options:

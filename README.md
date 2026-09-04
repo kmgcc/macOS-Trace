@@ -10,27 +10,124 @@
 
 Headless profiling and quantitative A/B benchmarking toolchain for macOS applications using `xctrace` and Xcode Instruments.
 
-Designed for both AI coding agents (Claude Code, OpenAI Codex, Cursor, Google Antigravity, GitHub Copilot) and macOS systems engineers. It automates trace collection, table data extraction via XPath, and differential performance analysis without opening the Instruments GUI.
+Designed for AI coding agents (Claude Code, OpenAI Codex, Cursor, Google Antigravity, GitHub Copilot) and macOS systems engineers. It automates trace collection, table data extraction via XPath, and differential performance analysis without opening the Instruments GUI.
 
 ---
 
-## Overview
+## Prerequisites and Scope
 
-Traditional Instruments profiling requires manual GUI interaction and exports opaque `.trace` bundles that cannot be parsed directly in automated pipelines or terminal sessions.
+Read these system requirements and constraints before deploying or invoking this skill:
 
-`macOS-Trace` provides:
-- Headless recording for `Power Profiler`, `Time Profiler`, and `Allocations` via `xcrun xctrace`.
-- Targeted XML extraction using table-level XPath queries (`ProcessSubsystemPowerImpact`, `all-allocations-summary`).
-- Lightweight Python parsers using only the standard library (zero third-party dependencies).
-- Differential A/B comparison that measures instruction rate deltas (M/s), CPU impact, and allocation frequency against an established baseline.
-- Production-tested recipes for CoreAudio/DSP, Metal shaders, WebKit hybrid views, and AppKit/SwiftUI memory spikes.
+### Supported Targets
+- **macOS Native Applications Only**: Designed exclusively for macOS desktop software (SwiftUI, AppKit, Metal, CoreAudio / AVAudioEngine, WebKit native host apps, and compiled CLI binaries).
+- **Unsupported**: Not designed for iOS simulators, remote physical iPhones/iPads, watchOS/tvOS, or browser-only web applications running in external browsers.
+
+### Tooling and System Requirements
+- **macOS Version**: macOS 12.0 (Monterey) or later.
+- **Xcode & xctrace**: Full Xcode installation or Xcode Command Line Tools with `xctrace` support. Verify with:
+  ```bash
+  xcode-select -p
+  xcrun xctrace version
+  ```
+  If missing, install via `xcode-select --install` or download Xcode from the Mac App Store / Apple Developer portal.
+- **Hardware Metrics**: The `Power Profiler` template and subsystem energy impact counters (`ProcessSubsystemPowerImpact`) require Apple Silicon hardware (M1/M2/M3/M4 series).
+- **Process Entitlements**: When attaching (`--attach <PID>`) to processes built with Hardened Runtime enabled, the binary must include the `com.apple.security.get-task-allow` entitlement (standard in Debug builds). Otherwise, profiling must be performed by launching the executable directly via `--launch`.
+- **Python**: Python 3.8+ (pre-installed on macOS). All included scripts use the standard library only (`re`, `sys`, `os`, `xml.etree.ElementTree`, `collections`). No third-party pip packages are required.
 
 ---
 
-## Workflow
+## Agent Installation and Integration Guide
+
+This section outlines how an AI coding agent should install, locate, and execute `macOS-Trace` within an automated repository workflow.
+
+### 1. Skill Location Detection
+
+When an agent needs to install this skill into a repository, it should detect the existing skill directory convention in the workspace:
+
+```bash
+# Order of preference for agent skill directories:
+# 1. Standard Agent Skills: .agents/skills/
+# 2. OpenAI Codex:          .codex/skills/
+# 3. Cursor:                 .cursor/skills/
+# 4. Claude Code:            .claude/skills/
+```
+
+If none exists, default to `.agents/skills/`.
+
+### 2. Installation Commands for Agents
+
+Install into the target repository using one of the following commands:
+
+```bash
+# Option A: Standard Agent Skills directory (Recommended)
+mkdir -p .agents/skills
+git clone https://github.com/kmgcc/macOS-Trace.git .agents/skills/macos-trace
+
+# Option B: As a Git Submodule (for versioned repository tracking)
+git submodule add https://github.com/kmgcc/macOS-Trace.git .agents/skills/macos-trace
+
+# Option C: OpenAI Codex specific directory
+mkdir -p .codex/skills
+git clone https://github.com/kmgcc/macOS-Trace.git .codex/skills/macos-trace
+
+# Option D: User-level global installation (available across all workspaces)
+mkdir -p ~/.agents/skills
+git clone https://github.com/kmgcc/macOS-Trace.git ~/.agents/skills/macos-trace
+```
+
+### 3. Autonomous Execution Protocol for Agents
+
+When an agent is tasked with diagnosing a performance issue or verifying an optimization, it should execute the following 5-step protocol:
 
 ```text
-Target Process (PID)
+Step 1: Verify Environment & Liveness
+   │    Check xcrun xctrace, verify target process exists via pgrep.
+   ▼
+Step 2: Record Idle Baseline Run
+   │    Keep window in foreground. Record 60s with workload paused.
+   ▼
+Step 3: Execute Target Workload & Record Active Run
+   │    Trigger target feature/audio/animation. Record 60s active state.
+   ▼
+Step 4: Compute Differential Delta
+   │    Run scripts/compare_elements.py to compute:
+   │    Delta = Active - Baseline.
+   ▼
+Step 5: Report Empirical Results
+        Present table with M/s instruction delta and CPU change to the user.
+```
+
+#### Protocol Command Sequence
+
+```bash
+# Step 1: Pre-flight check
+APP_NAME="YourApp"
+PID=$(pgrep -x "$APP_NAME")
+if [[ -z "$PID" ]]; then
+  echo "Error: Process $APP_NAME is not running." >&2
+  exit 1
+fi
+
+SKILL_DIR=".agents/skills/macos-trace"
+
+# Step 2: Record 60s idle baseline (workload paused, window visible)
+"$SKILL_DIR/scripts/run_trace.sh" --process "$PID" --template power --duration 60s --label "01-baseline"
+
+# Step 3: Trigger the target feature in the app, then record 60s active state
+"$SKILL_DIR/scripts/run_trace.sh" --process "$PID" --template power --duration 60s --label "02-active"
+
+# Step 4: Run comparison
+python3 "$SKILL_DIR/scripts/compare_elements.py" \
+  /tmp/macos-traces/01-baseline-power.xml:"1. Idle Baseline" \
+  /tmp/macos-traces/02-active-power.xml:"2. Active Workload"
+```
+
+---
+
+## Workflow Architecture
+
+```text
+Target Native App (PID)
         │
         ▼
 xcrun xctrace record (Headless Instruments)
@@ -53,70 +150,25 @@ Quantitative Metrics & Baseline Delta (M/s, CPU %, Alloc/s)
 
 ---
 
-## Quick Start
+## Quick Start Example
 
-Use `scripts/run_trace.sh` to record, export, and parse in a single command:
+Running the comparison produces an empirical differential report:
 
-```bash
-# 1. Record 60s idle baseline:
-./scripts/run_trace.sh --process "MyApp" --template power --duration 60s --label "01-idle-base"
-
-# 2. Trigger the active workload in the app, then record:
-./scripts/run_trace.sh --process "MyApp" --template power --duration 60s --label "02-active-workload"
-
-# 3. Compare runs against baseline:
-python3 scripts/compare_elements.py \
-  /tmp/macos-traces/01-idle-base-power.xml:"1. Baseline" \
-  /tmp/macos-traces/02-active-workload-power.xml:"2. Active Workload"
-```
-
-Output:
 ```text
 Scenario                    Sec  CPU Avg  CPU Max  Display  GPU Avg  Total Instr    Instr M/s
 ============================================================================================
-1. Baseline                  60     0.15     0.80     0.05     0.00        1.02G         17.0
+1. Idle Baseline             60     0.15     0.80     0.05     0.00        1.02G         17.0
 2. Active Workload           60     1.85     3.40     0.90     1.20       12.60G        210.0
 --------------------------------------------------------------------------------------------
-Differential vs Baseline [1. Baseline]:
+Differential vs Baseline [1. Idle Baseline]:
   2. Active Workload           +193.0 M/s instructions, CPU Avg Delta +1.70
-```
-
----
-
-## Installation
-
-### Project-Level Installation
-
-Clone into your workspace's agent skills directory:
-
-```bash
-# Standard Agent Skills directory (.agents/skills)
-git clone https://github.com/kmgcc/macOS-Trace.git .agents/skills/macos-trace
-
-# Codex workspace directory (.codex/skills)
-git clone https://github.com/kmgcc/macOS-Trace.git .codex/skills/macos-trace
-
-# As a Git submodule
-git submodule add https://github.com/kmgcc/macOS-Trace.git .agents/skills/macos-trace
-```
-
-### Global Installation
-
-```bash
-# Global skills directory for Claude Code / Cursor / Antigravity
-mkdir -p ~/.agents/skills
-git clone https://github.com/kmgcc/macOS-Trace.git ~/.agents/skills/macos-trace
-
-# Global skills directory for Codex
-mkdir -p ~/.codex/skills
-git clone https://github.com/kmgcc/macOS-Trace.git ~/.codex/skills/macos-trace
 ```
 
 ---
 
 ## Included Tooling
 
-All scripts require Python 3.8+ and use the standard library only (`re`, `sys`, `os`, `xml.etree.ElementTree`, `collections`). No virtual environment or pip packages required.
+All scripts require Python 3.8+ and use the standard library only (`re`, `sys`, `os`, `xml.etree.ElementTree`, `collections`).
 
 | Script | Function | Usage |
 | :--- | :--- | :--- |
@@ -146,15 +198,7 @@ Detailed implementation guidance is provided in [SKILL.md](SKILL.md):
 1. **Real-Time Audio & DSP**: Zero heap allocations in `AURenderCallback` or `AVAudioNodeTap`; lock-free ring buffer dispatch for FFT analysis; UI update throttling (30-60Hz).
 2. **Metal & Visual Effects**: Managing Retina pixel fill-rate multipliers (2x/3x scale factor on 4K displays); pausing `MTKView` and `CVDisplayLink` on window occlusion (`NSWindowOcclusionState`).
 3. **WebKit & Hybrid Views**: Avoiding high-frequency `evaluateJavaScript` IPC saturation with large JSON payloads; using CSS transforms instead of layout-triggering properties for text animation.
-4. **Desktop UI & Memory**: Downsampling full-resolution image artwork during decoding with `CGImageSourceCreateThumbnailAtIndex`; profiling SwiftUI root `@Observable` cascading body invalidation.
-
----
-
-## Prerequisites
-
-- macOS 12.0 (Monterey) or later.
-- Xcode Command Line Tools (`xcode-select --install`).
-- Python 3.8+ (included with macOS).
+4. **Desktop UI & Memory**: Downsampling high-resolution images or textures at decode time with `CGImageSourceCreateThumbnailAtIndex`; profiling SwiftUI root `@Observable` cascading body invalidation.
 
 ---
 
