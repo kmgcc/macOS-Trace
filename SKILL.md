@@ -239,21 +239,14 @@ Instruments templates supported by `scripts/run_trace.sh` and headless `xctrace`
 - **Window occlusion**: Observe `NSWindow.occlusionState`. When `contains(.visible)` is false (window minimized or covered), pause `CVDisplayLink` or set `isPaused = true` on `MTKView`.
 - **Diagnosis**: Use `Power Profiler` (`GPU Impact` column) and `Metal System Trace`.
 
-### WebKit & Heavy Surface Lifecycle
-- **Strict surface mutual exclusion**: When an app switches between embedded, windowed, or full-screen representations of heavy views (such as `WKWebView`, `SCNView`, or video players), ensure only the currently active surface retains working instances. Never allow inactive presentations to retain live render loops or DOM engines in parallel.
-- **Host attachment tokens**: In SwiftUI / AppKit bridging (`NSViewRepresentable`), asynchronous dismantling or rapid layout churn can cause a previous coordinator's `dismantleNSView` to arrive after a new coordinator has already attached the view. Tag attachments with unique tokens or UUIDs so that stale teardown callbacks cannot tear down or invalidate an actively running successor.
-- **Clean teardown over blank navigation**: For web views, simply navigating to `about:blank` does not immediately release script runtimes, message handlers, or native bridges. Explicitly cancel pending tasks, remove message handlers/scripts/delegates, and break strong references to allow the helper process (`WebContent`) to exit cleanly.
-- **Diagnosis**: Check process lists for redundant worker/WebContent processes and verify allocations return to baseline after view transitions.
-
-### SwiftUI State Boundary & High-Frequency Clocks
-- **Decouple high-frequency timers from root view trees**: If playback clocks, animations, or sensor updates tick at 4Hz to 60Hz, avoid binding that ticking state at high levels of the SwiftUI view hierarchy. Doing so causes the entire view tree (including static headers, art panels, and heavy bridged subviews) to re-evaluate on every tick.
-- **Leaf-level observation**: Split state models into a `stableProjection` (title, metadata, controls that rarely change) and a narrow `liveProjection` (current progress, audio meters). Only let terminal leaf controls observe the high-frequency tick.
-- **Avoid heavy bridged views inside coarse `.id()` scopes**: Do not attach broad `.id(uniqueIdentifier)` modifiers to container views wrapping bridged AppKit views or WebViews unless total recreation is explicitly intended.
-- **Diagnosis**: Use `SwiftUI` and `Time Profiler` to check if root view bodies are executing on every timer tick.
+### WebKit & Hybrid Views
+- **IPC message rate**: Calling `evaluateJavaScript` with large JSON payloads at high frequency saturates WebKit IPC and spikes CPU. Send sparse synchronization anchors (e.g., 1Hz) and let JavaScript interpolate smooth movement using `requestAnimationFrame`.
+- **DOM layout thrashing**: Continuously changing properties like `top`, `margin`, or `height` in dynamic scroll or text views forces browser layout recalculation. Use CSS `transform: translateY()` or `opacity` instead.
+- **Diagnosis**: Use `Time Profiler` and search for `WebCore::RenderLayer` or IPC serialization symbols.
 
 ### UI & Memory Management
 - **Image downsampling**: Decoding high-resolution image assets (e.g., 3000x3000px or larger raw bitmaps) directly into `NSImage` allocates ~36MB of uncompressed bitmap memory per image. Downsample at decode time using `CGImageSourceCreateThumbnailAtIndex` with `kCGImageSourceThumbnailMaxPixelSize`.
-- **Presentation cache purging**: Purge reconstructible presentation caches (e.g. transient layout textures, thumbnail derivatives, rendered vector assets) upon scene transitions or memory pressure notifications (`NSApplication.willResignActiveNotification`).
+- **SwiftUI body invalidation**: Root-level state changes trigger re-evaluation of downstream view bodies. Use `Time Profiler` to inspect repeated `View.body.getter` calls.
 - **Diagnosis**: Use `Allocations` with `scripts/top_categories.py` to identify large transient buffer spikes.
 
 ---
