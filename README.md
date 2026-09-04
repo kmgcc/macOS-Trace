@@ -181,13 +181,40 @@ All scripts require Python 3.8+ and use the standard library only (`re`, `sys`, 
 
 ## Instruments Templates
 
-| Template | Shorthand | Target Metrics & Use Case |
+The toolchain supports standard Instruments templates via `scripts/run_trace.sh` shorthand flags:
+
+### Compute & Energy
+| Template | Shorthand | Target Metrics & Primary Use Case |
 | :--- | :--- | :--- |
-| `Power Profiler` | `power` | CPU instruction rate (M/s), CPU/GPU/Display subsystem impacts (`ProcessSubsystemPowerImpact`). Recommended for A/B testing. |
+| `Power Profiler` | `power` | CPU instruction rate (M/s), CPU/GPU/Display subsystem impacts (`ProcessSubsystemPowerImpact`). Recommended for objective A/B testing. |
 | `Time Profiler` | `time` | Thread CPU weights, call stack hotspots, main-thread blocking methods. |
-| `Allocations` | `alloc` | Heap allocation rates, transient memory spikes, category event rates (`all-allocations-summary`). |
+| `CPU Counters` | `counters` | IPC (instructions per cycle), L1/L2 cache misses, branch mispredictions. For computational and DSP bottlenecks. |
+
+### UI Responsiveness & Smoothness
+| Template | Shorthand | Target Metrics & Primary Use Case |
+| :--- | :--- | :--- |
+| `Animation Hitches` | `hitches` | Hitch duration (ms), hitch ratio (ms/s), frame drops. Distinguishes App Phase (commit delays) from Render Phase (GPU delays). |
+| `SwiftUI` | `swiftui` | View body evaluations, State invalidations, view update frequency. Diagnoses cascade re-renders. |
+| `Metal System Trace` | `metal` | GPU encoder time, vertex/fragment shader durations, frame latency. Shader and particle pipeline stalls. |
+
+### Memory & Allocations
+| Template | Shorthand | Target Metrics & Primary Use Case |
+| :--- | :--- | :--- |
+| `Allocations` | `alloc` | Heap allocations, transient memory spikes, category event rates (`all-allocations-summary`). Buffer thrashing and peak allocation. |
 | `Leaks` | `leaks` | Object leaks outliving parent lifecycle, retain cycles. |
-| `Metal System Trace` | `metal` | GPU encoder time, vertex/fragment shader durations, frame latency. |
+
+### Startup & Concurrency
+| Template | Shorthand | Target Metrics & Primary Use Case |
+| :--- | :--- | :--- |
+| `App Launch` | `launch` | Time to first frame, `dyld` loading time, static initializers, runloop setup. Cold-start optimization. |
+| `Swift Concurrency` | `concurrency` | Swift Tasks (created/running/suspended), Actor reentrancy, cooperative thread pool saturation. |
+| `System Trace` | `sys` | Thread state transitions (Running, Blocked on mutex, Waiting, Preempted), syscalls. Essential for "low CPU but frozen UI" hangs. |
+
+### I/O & Audio
+| Template | Shorthand | Target Metrics & Primary Use Case |
+| :--- | :--- | :--- |
+| `File Activity` | `files` / `io` | File open/read/write/close calls, I/O latency, throughput. Database (SwiftData/SQLite) or asset loading stalls. |
+| `Audio System Trace` | `audio` | CoreAudio HAL IO thread jitter, audio buffer overruns/underruns (XRuns/glitches). Audio dropouts and DSP instability. |
 
 ---
 

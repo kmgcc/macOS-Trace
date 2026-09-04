@@ -181,13 +181,40 @@ Differential vs Baseline [1. 静置基线]:
 
 ## 常用 Instruments 模板
 
-| 模板名称 | 简写参数 | 核心量化指标与适用场景 |
-| :--- | :--- | :--- |
-| `Power Profiler` | `power` | 每秒指令吞吐（M/s）、CPU/GPU/Display 功耗 Impact（`ProcessSubsystemPowerImpact`）。A/B 对比首选。 |
-| `Time Profiler` | `time` | 各线程 CPU 权重占比、调用栈热点（Call-tree）、主线程卡顿分析。 |
-| `Allocations` | `alloc` | 堆内存分配速率、瞬时内存波峰、分类事件频次（`all-allocations-summary`）。 |
-| `Leaks` | `leaks` | 失去父级引用的内存泄漏、循环引用（Retain Cycles）。 |
-| `Metal System Trace` | `metal` | GPU Encoder 执行耗时、片元/顶点着色器负载、帧边界渲染延迟。 |
+本工具链原生支持以下标准 Instruments 模板（可通过 `scripts/run_trace.sh` 简写参数直接调用）：
+
+### 计算与能耗基线 (Compute & Energy)
+| 模板名称 | 简写参数 | 核心量化指标 | 适用诊断场景 |
+| :--- | :--- | :--- | :--- |
+| `Power Profiler` | `power` | 每秒指令吞吐（M/s）、CPU/GPU/Display 功耗 Impact（`ProcessSubsystemPowerImpact`）。 | 客观 A/B 调优对比、整机能耗与发热排查。 |
+| `Time Profiler` | `time` | 各线程 CPU 权重占比、调用栈热点（Call-tree）、主线程耗时方法。 | CPU 占满、高频计算、热点调用栈定位。 |
+| `CPU Counters` | `counters` | IPC（每周期指令数）、L1/L2 缓存未命中、分支预测失败率。 | 底层密集型算法（DSP/编解码）性能瓶颈诊断。 |
+
+### 界面流畅度与渲染耗时 (UI & Rendering)
+| 模板名称 | 简写参数 | 核心量化指标 | 适用诊断场景 |
+| :--- | :--- | :--- | :--- |
+| `Animation Hitches` | `hitches` | 卡顿时长（Hitch Duration，ms）、卡顿率（Hitch Ratio，ms/s）、掉帧计数。 | 滚动掉帧，精准区分 App 阶段（Commit 延迟）与 Render 阶段（GPU 延迟）。 |
+| `SwiftUI` | `swiftui` | View Body 求值次数、State 变更计数、属性修改频次。 | 诊断 SwiftUI 视图树级联重算与无效重绘。 |
+| `Metal System Trace` | `metal` | GPU Encoder 耗时、片元/顶点着色器执行时间、帧管线停顿。 | 自定义着色器渲染瓶颈、粒子特效开销与帧同步延迟。 |
+
+### 内存与资源分配 (Memory & Allocations)
+| 模板名称 | 简写参数 | 核心量化指标 | 适用诊断场景 |
+| :--- | :--- | :--- | :--- |
+| `Allocations` | `alloc` | 堆内存分配事件速率、瞬时内存波峰、分类事件频次（`all-allocations-summary`）。 | 高频小对象堆分配、缓冲未复用、大图解码峰值。 |
+| `Leaks` | `leaks` | 失去父级引用的孤立内存泄漏、循环引用（Retain Cycles）。 | 排查闭包捕获泄漏与未能正常释放的对象。 |
+
+### 启动与多线程并发 (Startup & Concurrency)
+| 模板名称 | 简写参数 | 核心量化指标 | 适用诊断场景 |
+| :--- | :--- | :--- | :--- |
+| `App Launch` | `launch` | 首帧渲染耗时、`dyld` 动态库加载时间、静态初始化耗时、Runloop 启动延迟。 | 应用冷启动全流程耗时优化（结合 `--launch` 参数）。 |
+| `Swift Concurrency` | `concurrency` | Swift Task 状态（创建/挂起/运行）、Actor 重入频次、协作线程池饱和度。 | Swift `async/await` 协程饥饿、长时间挂起与 Actor 争用。 |
+| `System Trace` | `sys` | 线程状态机转换（Running、Blocked on mutex、Waiting、Preempted）、系统调用。 | **“CPU 占用极低但界面完全卡死”**的根因排查（互斥锁争用或 I/O 阻塞）。 |
+
+### 存储与音频 (I/O & Audio)
+| 模板名称 | 简写参数 | 核心量化指标 | 适用诊断场景 |
+| :--- | :--- | :--- | :--- |
+| `File Activity` | `files` / `io` | 文件 Open/Read/Write/Close 调用频次、I/O 延迟、吞吐量。 | 磁盘 I/O 瓶颈、数据库（SwiftData/SQLite）卡死、大量文件扫描。 |
+| `Audio System Trace` | `audio` | CoreAudio HAL IO 线程抖动、音频缓冲区溢出/下溢（XRuns/Glitches）。 | 音频播放爆音、断流与实时音频调度超时。 |
 
 ---
 

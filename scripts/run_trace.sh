@@ -25,11 +25,19 @@ Target Selection (Required: choose one):
 
 Profiling Options:
   -t, --template <name>       Instruments template. Supports shorthands:
-                              power  -> 'Power Profiler' (default)
-                              time   -> 'Time Profiler'
-                              alloc  -> 'Allocations'
-                              leaks  -> 'Leaks'
-                              metal  -> 'Metal System Trace'
+                              power       -> 'Power Profiler' (default)
+                              time        -> 'Time Profiler'
+                              alloc       -> 'Allocations'
+                              leaks       -> 'Leaks'
+                              metal       -> 'Metal System Trace'
+                              hitches     -> 'Animation Hitches'
+                              swiftui     -> 'SwiftUI'
+                              concurrency -> 'Swift Concurrency'
+                              launch      -> 'App Launch'
+                              files | io  -> 'File Activity'
+                              sys         -> 'System Trace'
+                              audio       -> 'Audio System Trace'
+                              counters    -> 'CPU Counters'
                               Or specify any exact Instruments template name.
   -d, --duration <time>       Recording duration limit (default: 60s, e.g. 30s, 120s)
   -o, --output-dir <path>     Directory to save .trace and exported .xml files (default: /tmp/macos-traces)
@@ -42,6 +50,9 @@ Examples:
 
   # Profile allocations for 45s:
   $(basename "$0") --process MyApp --template alloc --duration 45s
+
+  # Profile UI animation hitches during scrolling:
+  $(basename "$0") --process MyApp --template hitches --duration 30s
 
   # Cold-launch binary under Time Profiler for 20s:
   $(basename "$0") --launch /path/to/MyApp.app/Contents/MacOS/MyApp --template time --duration 20s
@@ -62,12 +73,20 @@ while [[ $# -gt 0 ]]; do
       ;;
     -t|--template)
       case "$2" in
-        power) TEMPLATE="Power Profiler" ;;
-        time)  TEMPLATE="Time Profiler" ;;
-        alloc) TEMPLATE="Allocations" ;;
-        leaks) TEMPLATE="Leaks" ;;
-        metal) TEMPLATE="Metal System Trace" ;;
-        *)     TEMPLATE="$2" ;;
+        power)       TEMPLATE="Power Profiler" ;;
+        time)        TEMPLATE="Time Profiler" ;;
+        alloc)       TEMPLATE="Allocations" ;;
+        leaks)       TEMPLATE="Leaks" ;;
+        metal)       TEMPLATE="Metal System Trace" ;;
+        hitches)     TEMPLATE="Animation Hitches" ;;
+        swiftui)     TEMPLATE="SwiftUI" ;;
+        concurrency) TEMPLATE="Swift Concurrency" ;;
+        launch)      TEMPLATE="App Launch" ;;
+        files|io)    TEMPLATE="File Activity" ;;
+        sys)         TEMPLATE="System Trace" ;;
+        audio)       TEMPLATE="Audio System Trace" ;;
+        counters)    TEMPLATE="CPU Counters" ;;
+        *)           TEMPLATE="$2" ;;
       esac
       shift 2
       ;;
