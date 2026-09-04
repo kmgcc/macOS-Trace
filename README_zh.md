@@ -3,6 +3,7 @@
 [English](README.md) | [中文](README_zh.md)
 
 [![Agent Skills Open Standard](https://img.shields.io/badge/Agent_Skills-Open_Standard-blueviolet.svg)](https://agentskills.io)
+[![Install](https://img.shields.io/badge/Install-npx_skills_add-000000.svg)](https://skills.sh/kmgcc/macOS-Trace)
 [![Platform](https://img.shields.io/badge/Platform-macOS_12%2B-black.svg)](https://developer.apple.com/macos/)
 [![Tooling](https://img.shields.io/badge/Xcode-Instruments_%2F_xctrace-007AFF.svg)](https://developer.apple.com/xcode/)
 [![Python](https://img.shields.io/badge/Python-3.8%2B_(Zero_Deps)-3776AB.svg)](https://www.python.org/)
@@ -86,54 +87,53 @@
 
 ---
 
-## AI Agent 安装与集成指南
+## 安装方式
 
-### 1. 技能目录识别规范
-
-```bash
-# Agent Skills 目录优先级探测顺序：
-# 1. 开放标准目录：  .agents/skills/
-# 2. OpenAI Codex：  .codex/skills/
-# 3. Cursor：        .cursor/skills/
-# 4. Claude Code：   .claude/skills/
-```
-
-若不存在上述目录，默认新建 `.agents/skills/`。
-
-### 2. Agent 安装命令
+### 推荐：skills CLI 一条命令安装
 
 ```bash
-# 推荐：安装到项目标准 Agent Skills 目录
-mkdir -p .agents/skills
-git clone https://github.com/kmgcc/macOS-Trace.git .agents/skills/macos-trace
-
-# 方式二：作为 Git Submodule 引入
-git submodule add https://github.com/kmgcc/macOS-Trace.git .agents/skills/macos-trace
-
-# 方式三：安装到 Codex 专用目录
-mkdir -p .codex/skills
-git clone https://github.com/kmgcc/macOS-Trace.git .codex/skills/macos-trace
-
-# 方式四：用户级全局安装
-mkdir -p ~/.agents/skills
-git clone https://github.com/kmgcc/macOS-Trace.git ~/.agents/skills/macos-trace
+npx skills add kmgcc/macOS-Trace
 ```
 
-### 3. 完整调优运行示例
+CLI 会自动探测本机已安装的 Agent（Claude Code、OpenAI Codex、Cursor、GitHub Copilot、Gemini CLI、Google Antigravity、OpenCode、Windsurf 等 70+），并把技能链接到每个 Agent 的正确目录。加 `-g` 安装到用户级全局（所有项目可用），或 `-a claude-code -g` 只装给指定 Agent。
+
+### 手动安装（按 Agent 分目录）
+
+各 Agent 读取技能的目录不同，技能目录名必须是 `macos-trace`（与 SKILL.md 的 `name` 字段一致）：
+
+| Agent | 项目级 | 用户级全局 |
+| :--- | :--- | :--- |
+| Claude Code | `.claude/skills/macos-trace` | `~/.claude/skills/macos-trace` |
+| OpenAI Codex | `.agents/skills/macos-trace` | `~/.codex/skills/macos-trace` |
+| Cursor | `.agents/skills/macos-trace` | `~/.cursor/skills/macos-trace` |
+| OpenCode | `.agents/skills/macos-trace` | `~/.config/opencode/skills/macos-trace` |
+| Gemini CLI | `.agents/skills/macos-trace` | `~/.gemini/skills/macos-trace` |
+| Google Antigravity | `.agents/skills/macos-trace` | `~/.gemini/antigravity/skills/macos-trace` |
+| GitHub Copilot | `.agents/skills/macos-trace` | `~/.copilot/skills/macos-trace` |
+| Amp / Cline / Warp / Zed | `.agents/skills/macos-trace` | `~/.agents/skills/macos-trace` |
+
+```bash
+# 为 Claude Code 装到用户级全局
+git clone https://github.com/kmgcc/macOS-Trace.git ~/.claude/skills/macos-trace
+
+# 或作为 git submodule 固定在工程内（Claude Code 项目级，便于版本跟踪）
+git submodule add https://github.com/kmgcc/macOS-Trace.git .claude/skills/macos-trace
+```
+
+### 完整调优运行示例
 
 ```bash
 APP_NAME="YourApp"
-PID=$(pgrep -x "$APP_NAME")
-SKILL_DIR=".agents/skills/macos-trace"
+SKILL_DIR="$HOME/.claude/skills/macos-trace"
 
-# 1. 采集 60 秒静置基线：
-"$SKILL_DIR/scripts/run_trace.sh" --process "$PID" --template power --duration 60s --label "01-baseline"
+# 1. 采集 60 秒静置基线（runner 自行解析进程名到 PID）：
+"$SKILL_DIR/scripts/run_trace.sh" --process "$APP_NAME" --template power --duration 60s --label "01-baseline"
 
 # 2. 采集优化前业务高负载样本：
-"$SKILL_DIR/scripts/run_trace.sh" --process "$PID" --template power --duration 60s --label "02-pre-opt"
+"$SKILL_DIR/scripts/run_trace.sh" --process "$APP_NAME" --template power --duration 60s --label "02-pre-opt"
 
 # 3. 实施代码优化并重新构建后，采集优化后高负载样本：
-"$SKILL_DIR/scripts/run_trace.sh" --process "$PID" --template power --duration 60s --label "03-post-opt"
+"$SKILL_DIR/scripts/run_trace.sh" --process "$APP_NAME" --template power --duration 60s --label "03-post-opt"
 
 # 4. 横向对比优化前后数据：
 python3 "$SKILL_DIR/scripts/compare_elements.py" \

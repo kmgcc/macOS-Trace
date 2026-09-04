@@ -156,8 +156,8 @@ if [[ -n "$PROCESS" ]]; then
       echo "[ERROR] No running process found matching '$PROCESS'." >&2
       exit 1
     elif [[ ${#FOUND_PIDS[@]} -gt 1 ]]; then
-      echo "[WARN] Multiple processes found matching '$PROCESS' (${FOUND_PIDS[*]}). Attaching to latest PID: ${FOUND_PIDS[-1]}"
-      TARGET_PID="${FOUND_PIDS[-1]}"
+      echo "[WARN] Multiple processes found matching '$PROCESS' (${FOUND_PIDS[*]}). Attaching to latest PID: ${FOUND_PIDS[${#FOUND_PIDS[@]}-1]}"
+      TARGET_PID="${FOUND_PIDS[${#FOUND_PIDS[@]}-1]}"
     else
       TARGET_PID="${FOUND_PIDS[0]}"
     fi

@@ -1,11 +1,11 @@
 ---
 name: macos-trace
-description: Autonomous closed-loop performance optimization engine for macOS applications using xctrace and Xcode Instruments. Handles the full lifecycle: aligning optimization targets with the user, headless diagnostic trace capture, isolating hotspots, implementing code fixes, re-testing with differential A/B verification, and iterating until performance goals are met without manual GUI intervention.
+description: Autonomous closed-loop performance optimization engine for macOS applications using xctrace and Xcode Instruments. Handles the full lifecycle: aligning optimization targets with the user, headless diagnostic trace capture, isolating hotspots, implementing code fixes, re-testing with differential A/B verification, and iterating until performance goals are met without manual GUI intervention. Use when the user reports high CPU usage, memory growth or leaks, UI stutter or dropped frames, slow cold launch, audio dropouts, or thermal issues in a macOS application, and asks to profile, benchmark, or optimize it.
 compatibility: macOS 12+, Xcode Command Line Tools, Python 3.8+
 license: MIT
 metadata:
   author: kmgcc
-  version: "1.1.0"
+  version: "1.2.0"
 ---
 
 # macOS-Trace: Autonomous Application Performance Optimization
@@ -96,16 +96,19 @@ Follow these non-negotiable rules during automated profiling:
 Before writing code, measure the current state and isolate the root cause:
 
 ```bash
-# 1. Pre-flight check
+# 1. Pre-flight check: the app must be running with its window visible
 APP_NAME="YourApp"
-PID=$(pgrep -x "$APP_NAME")
-SKILL_DIR=".agents/skills/macos-trace"
+pgrep -x "$APP_NAME" || { echo "[ERROR] $APP_NAME is not running. Launch it first."; exit 1; }
+
+# SKILL_DIR = this skill's installed directory (adjust if installed elsewhere)
+SKILL_DIR="$HOME/.claude/skills/macos-trace"
 
 # 2. Record 60s idle baseline (workload paused, window visible)
-"$SKILL_DIR/scripts/run_trace.sh" --process "$PID" --template power --duration 60s --label "01-baseline"
+# run_trace.sh resolves the process name to a PID itself
+"$SKILL_DIR/scripts/run_trace.sh" --process "$APP_NAME" --template power --duration 60s --label "01-baseline"
 
 # 3. Trigger workload in app, record active state
-"$SKILL_DIR/scripts/run_trace.sh" --process "$PID" --template power --duration 60s --label "02-pre-opt"
+"$SKILL_DIR/scripts/run_trace.sh" --process "$APP_NAME" --template power --duration 60s --label "02-pre-opt"
 
 # 4. Compute pre-optimization delta
 python3 "$SKILL_DIR/scripts/compare_elements.py" \
@@ -134,7 +137,7 @@ Rerun the profile under identical conditions and evaluate the delta:
 
 ```bash
 # 1. Record post-optimization active workload
-"$SKILL_DIR/scripts/run_trace.sh" --process "$PID" --template power --duration 60s --label "03-post-opt"
+"$SKILL_DIR/scripts/run_trace.sh" --process "$APP_NAME" --template power --duration 60s --label "03-post-opt"
 
 # 2. Compare Pre-Opt vs Post-Opt against Baseline
 python3 "$SKILL_DIR/scripts/compare_elements.py" \

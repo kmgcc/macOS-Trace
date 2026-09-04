@@ -3,6 +3,7 @@
 [English](README.md) | [中文](README_zh.md)
 
 [![Agent Skills Open Standard](https://img.shields.io/badge/Agent_Skills-Open_Standard-blueviolet.svg)](https://agentskills.io)
+[![Install](https://img.shields.io/badge/Install-npx_skills_add-000000.svg)](https://skills.sh/kmgcc/macOS-Trace)
 [![Platform](https://img.shields.io/badge/Platform-macOS_12%2B-black.svg)](https://developer.apple.com/macos/)
 [![Tooling](https://img.shields.io/badge/Xcode-Instruments_%2F_xctrace-007AFF.svg)](https://developer.apple.com/xcode/)
 [![Python](https://img.shields.io/badge/Python-3.8%2B_(Zero_Deps)-3776AB.svg)](https://www.python.org/)
@@ -84,56 +85,53 @@ Before making changes or running traces, agents should align on targets with the
 
 ---
 
-## Agent Installation and Integration Guide
+## Installation
 
-### 1. Skill Location Detection
-
-When an agent needs to install this skill into a repository, it should detect the existing skill directory convention:
+### Recommended: one command with the skills CLI
 
 ```bash
-# Order of preference for agent skill directories:
-# 1. Standard Agent Skills: .agents/skills/
-# 2. OpenAI Codex:          .codex/skills/
-# 3. Cursor:                 .cursor/skills/
-# 4. Claude Code:            .claude/skills/
+npx skills add kmgcc/macOS-Trace
 ```
 
-If none exists, default to `.agents/skills/`.
+The `skills` CLI detects installed agents (Claude Code, OpenAI Codex, Cursor, GitHub Copilot, Gemini CLI, Google Antigravity, OpenCode, Windsurf, and 70+ more) and links the skill into the correct directory for each. Add `-g` to install globally for all projects, or `-a claude-code -g` to target a single agent.
 
-### 2. Installation Commands for Agents
+### Manual installation (per agent)
+
+Each agent reads skills from its own directory. The skill directory name must be `macos-trace`, matching the `name` field in `SKILL.md`:
+
+| Agent | Project scope | Global scope (all projects) |
+| :--- | :--- | :--- |
+| Claude Code | `.claude/skills/macos-trace` | `~/.claude/skills/macos-trace` |
+| OpenAI Codex | `.agents/skills/macos-trace` | `~/.codex/skills/macos-trace` |
+| Cursor | `.agents/skills/macos-trace` | `~/.cursor/skills/macos-trace` |
+| OpenCode | `.agents/skills/macos-trace` | `~/.config/opencode/skills/macos-trace` |
+| Gemini CLI | `.agents/skills/macos-trace` | `~/.gemini/skills/macos-trace` |
+| Google Antigravity | `.agents/skills/macos-trace` | `~/.gemini/antigravity/skills/macos-trace` |
+| GitHub Copilot | `.agents/skills/macos-trace` | `~/.copilot/skills/macos-trace` |
+| Amp / Cline / Warp / Zed | `.agents/skills/macos-trace` | `~/.agents/skills/macos-trace` |
 
 ```bash
-# Option A: Standard Agent Skills directory (Recommended)
-mkdir -p .agents/skills
-git clone https://github.com/kmgcc/macOS-Trace.git .agents/skills/macos-trace
+# Clone globally for Claude Code
+git clone https://github.com/kmgcc/macOS-Trace.git ~/.claude/skills/macos-trace
 
-# Option B: As a Git Submodule (for versioned repository tracking)
-git submodule add https://github.com/kmgcc/macOS-Trace.git .agents/skills/macos-trace
-
-# Option C: OpenAI Codex specific directory
-mkdir -p .codex/skills
-git clone https://github.com/kmgcc/macOS-Trace.git .codex/skills/macos-trace
-
-# Option D: User-level global installation (available across all workspaces)
-mkdir -p ~/.agents/skills
-git clone https://github.com/kmgcc/macOS-Trace.git ~/.agents/skills/macos-trace
+# Or pin it inside a repository as a versioned git submodule (Claude Code project scope)
+git submodule add https://github.com/kmgcc/macOS-Trace.git .claude/skills/macos-trace
 ```
 
-### 3. Complete Optimization Run Example
+### Complete Optimization Run Example
 
 ```bash
 APP_NAME="YourApp"
-PID=$(pgrep -x "$APP_NAME")
-SKILL_DIR=".agents/skills/macos-trace"
+SKILL_DIR="$HOME/.claude/skills/macos-trace"
 
-# 1. Record 60s idle baseline:
-"$SKILL_DIR/scripts/run_trace.sh" --process "$PID" --template power --duration 60s --label "01-baseline"
+# 1. Record 60s idle baseline (the runner resolves the process name to a PID itself):
+"$SKILL_DIR/scripts/run_trace.sh" --process "$APP_NAME" --template power --duration 60s --label "01-baseline"
 
 # 2. Record pre-optimization active workload:
-"$SKILL_DIR/scripts/run_trace.sh" --process "$PID" --template power --duration 60s --label "02-pre-opt"
+"$SKILL_DIR/scripts/run_trace.sh" --process "$APP_NAME" --template power --duration 60s --label "02-pre-opt"
 
 # 3. Implement code fixes, rebuild app, then record post-optimization active workload:
-"$SKILL_DIR/scripts/run_trace.sh" --process "$PID" --template power --duration 60s --label "03-post-opt"
+"$SKILL_DIR/scripts/run_trace.sh" --process "$APP_NAME" --template power --duration 60s --label "03-post-opt"
 
 # 4. Compare Pre-Opt vs Post-Opt against Baseline:
 python3 "$SKILL_DIR/scripts/compare_elements.py" \
