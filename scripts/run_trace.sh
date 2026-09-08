@@ -42,6 +42,7 @@ Profiling Options:
   -t, --template <name>       Instruments template. Supports shorthands:
                               power       -> 'Power Profiler' (default)
                               time        -> 'Time Profiler'
+                              activity    -> 'Activity Monitor'
                               alloc       -> 'Allocations'
                               leaks       -> 'Leaks'
                               metal       -> 'Metal System Trace'
@@ -59,6 +60,11 @@ Profiling Options:
   --label <text>              Custom label for report (default: process name or scenario)
   --no-analyze                Skip automatic XML export and Python analysis
 
+Notes:
+  - Power Profiler requires Apple Silicon; energy counters are unavailable on Intel.
+  - Auto-analysis per template: power -> parse_power.py; time -> top_time.py;
+    activity -> activity_cpu.py; alloc -> top_categories.py.
+
 Examples:
   # Profile running app for 60s with Power Profiler and parse results:
   $(basename "$0") --process MyApp --template power --duration 60s
@@ -71,6 +77,10 @@ Examples:
 
   # Cold-launch binary under Time Profiler for 20s:
   $(basename "$0") --launch /path/to/MyApp.app/Contents/MacOS/MyApp --template time --duration 20s
+
+  # Hot call-trees + per-process CPU fallback:
+  $(basename "$0") --process MyApp --template time --duration 60s
+  $(basename "$0") --process MyApp --template activity --duration 30s
 EOF
   exit 0
 }
@@ -90,6 +100,7 @@ while [[ $# -gt 0 ]]; do
       case "$2" in
         power)       TEMPLATE="Power Profiler" ;;
         time)        TEMPLATE="Time Profiler" ;;
+        activity)    TEMPLATE="Activity Monitor" ;;
         alloc)       TEMPLATE="Allocations" ;;
         leaks)       TEMPLATE="Leaks" ;;
         metal)       TEMPLATE="Metal System Trace" ;;
@@ -223,9 +234,49 @@ if [[ $AUTO_ANALYZE -eq 1 ]]; then
         echo "[WARN] ProcessSubsystemPowerImpact table not present or export returned non-zero."
       }
 
-    if [[ -f "$XML_FILE" && -s "$XML_FILE" ]]; then
+    if [[ -f "$XML_FILE" && -s "$XML_FILE" && $(grep -c '<row>' "$XML_FILE" 2>/dev/null || echo 0) -gt 0 ]]; then
       echo "[INFO] Parsing Power Impact metrics..."
       python3 "${SCRIPT_DIR}/parse_power.py" "$XML_FILE" "$LABEL"
+    else
+      echo "[WARN] Power Profiler produced no data rows (requires Apple Silicon)."
+    fi
+
+  elif [[ "$TEMPLATE" == "Time Profiler" ]]; then
+    XML_FILE="${OUTPUT_DIR}/${LABEL}-${TIMESTAMP}-time.xml"
+    echo "[INFO] Exporting time-profile table to XML..."
+    xcrun xctrace export \
+      --input "$TRACE_FILE" \
+      --xpath "/trace-toc/run[@number='1']/data/table[@schema='time-profile']" \
+      > "$XML_FILE" 2>/dev/null || {
+        echo "[WARN] time-profile table not present or export returned non-zero."
+      }
+
+    if [[ -f "$XML_FILE" && -s "$XML_FILE" && $(grep -c '<row>' "$XML_FILE" 2>/dev/null || echo 0) -gt 0 ]]; then
+      echo "[INFO] Parsing top CPU functions (top 25, leaf-attributed)..."
+      python3 "${SCRIPT_DIR}/top_time.py" "$XML_FILE" 25 --leaf
+    else
+      echo "[WARN] Time Profiler produced no data rows."
+    fi
+
+  elif [[ "$TEMPLATE" == "Activity Monitor" ]]; then
+    XML_FILE="${OUTPUT_DIR}/${LABEL}-${TIMESTAMP}-actmon.xml"
+    echo "[INFO] Exporting activity-monitor-process-live table to XML..."
+    xcrun xctrace export \
+      --input "$TRACE_FILE" \
+      --xpath "/trace-toc/run[@number='1']/data/table[@schema='activity-monitor-process-live']" \
+      > "$XML_FILE" 2>/dev/null || {
+        echo "[WARN] activity-monitor-process-live table not present or export returned non-zero."
+      }
+
+    if [[ -f "$XML_FILE" && -s "$XML_FILE" && $(grep -c '<row>' "$XML_FILE" 2>/dev/null || echo 0) -gt 0 ]]; then
+      echo "[INFO] Parsing per-process CPU (ms/s)..."
+      if [[ -n "$TARGET_NAME" && ! "$TARGET_NAME" =~ ^pid ]]; then
+        python3 "${SCRIPT_DIR}/activity_cpu.py" "$XML_FILE" "$TARGET_NAME"
+      else
+        python3 "${SCRIPT_DIR}/activity_cpu.py" "$XML_FILE"
+      fi
+    else
+      echo "[WARN] Activity Monitor produced no data rows."
     fi
 
   elif [[ "$TEMPLATE" == "Allocations" ]]; then
@@ -241,9 +292,11 @@ if [[ $AUTO_ANALYZE -eq 1 ]]; then
     DURATION_SEC=$(echo "$DURATION" | sed 's/[^0-9]//g')
     if [[ -z "$DURATION_SEC" ]]; then DURATION_SEC=60; fi
 
-    if [[ -f "$XML_FILE" && -s "$XML_FILE" ]]; then
+    if [[ -f "$XML_FILE" && -s "$XML_FILE" && $(grep -c '<row>' "$XML_FILE" 2>/dev/null || echo 0) -gt 0 ]]; then
       echo "[INFO] Parsing allocation categories..."
       python3 "${SCRIPT_DIR}/top_categories.py" "$XML_FILE" "$DURATION_SEC" 10.0
+    else
+      echo "[WARN] Allocations produced no data rows."
     fi
   fi
 fi

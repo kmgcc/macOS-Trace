@@ -5,7 +5,7 @@ compatibility: "macOS 12+, Xcode Command Line Tools, Python 3.8+"
 license: MIT
 metadata:
   author: kmgcc
-  version: "1.3.0"
+  version: "1.4.0"
 ---
 
 # macOS-Trace: Autonomous Application Performance Optimization
@@ -52,7 +52,7 @@ Once targets are confirmed, proceed to Phase 2.
 2. **Verify target state before recording**: confirm the process exists (`pgrep -x <name>`) and the target feature is actively executing during the recording window.
 3. **Keep the window in foreground**: macOS throttles rendering/display links for occluded or minimized windows (`NSWindowOcclusionState`) — an occluded window produces falsely low GPU/CPU readings.
 4. **Use equal test parameters**: identical durations (default 60s), display scales, window sizes, and input data. Never compare Debug vs Release builds.
-5. **Zero third-party Python dependencies**: bundled scripts use the standard library only.
+5. **Zero third-party Python dependencies**: bundled scripts use the standard library only (`compare_elements.py`, `parse_power.py`, `top_categories.py`, `top_time.py`, `activity_cpu.py`, `compare_cpu.py`).
 6. **Save outputs to `/tmp/macos-traces/`**: timestamped, scenario-tagged filenames.
 7. **Protect context budget**: never dump raw `.trace` bundles, call-trees, or unparsed XML into the conversation — they can be hundreds of MB. Always stream/filter/rank via the bundled scripts before reading.
 8. **Focus on primary bottlenecks**: profile first to confirm the dominant contributor; don't scatter micro-optimizations across innocent utilities.
@@ -62,6 +62,8 @@ Once targets are confirmed, proceed to Phase 2.
     find "${TMPDIR:-/tmp}" -maxdepth 1 -type f -name 'instruments*.ktrace' -delete 2>/dev/null || true
     ```
 11. **Resolve `SKILL_DIR` dynamically, never hardcode it**: the skill's install path varies by host and agent (Claude Code: `~/.claude/skills/macos-trace`; DSH: `~/.dsh/skills/macos-trace`; project scope: `<root>/.dsh/skills/macos-trace`). Locate it before calling bundled scripts, and reference scripts only via `"$SKILL_DIR/scripts/..."`.
+12. **Never edit files inside the skill directory**: if you need to adapt a bundled script, copy it to a temp directory first (e.g. `/tmp/my-trace-tools/`), modify the copy, and run the copy. Keep the originals untouched so every run sees the same baseline.
+13. **Check the hardware before choosing Power Profiler**: `Power Profiler` and energy counters require **Apple Silicon** (M1/M2/M3/M4). On Intel Macs use `--template time` (hot call-trees) + `--template activity` (per-process CPU ms/s) as the fallback pair, and never invent energy figures. See `references/device-commands.md` for exact process/launch commands.
 
 ---
 
@@ -87,6 +89,26 @@ python3 "$SKILL_DIR/scripts/compare_elements.py" \
   /tmp/macos-traces/01-baseline-power.xml:"Idle Baseline" \
   /tmp/macos-traces/02-pre-opt-power.xml:"Active Pre-Opt"
 ```
+
+> **Non-Apple-Silicon fallback** (Power Profiler requires Apple Silicon): use Time
+> Profiler for attribution and Activity Monitor for magnitude, then compare those
+> numbers:
+> ```bash
+> "$SKILL_DIR/scripts/run_trace.sh" --process "$APP_NAME" --template time --duration 60s --label "01-baseline"
+> "$SKILL_DIR/scripts/run_trace.sh" --process "$APP_NAME" --template time --duration 60s --label "02-pre-opt"
+> python3 "$SKILL_DIR/scripts/top_time.py" /tmp/macos-traces/01-baseline-*-time.xml 15 --leaf
+> python3 "$SKILL_DIR/scripts/top_time.py" /tmp/macos-traces/02-pre-opt-*-time.xml 15 --leaf
+>
+> "$SKILL_DIR/scripts/run_trace.sh" --process "$APP_NAME" --template activity --duration 30s --label "01-baseline"
+> "$SKILL_DIR/scripts/run_trace.sh" --process "$APP_NAME" --template activity --duration 30s --label "02-pre-opt"
+> python3 "$SKILL_DIR/scripts/compare_cpu.py" \
+>   /tmp/macos-traces/01-baseline-*-actmon.xml:"Idle Baseline" \
+>   /tmp/macos-traces/02-pre-opt-*-actmon.xml:"Active Pre-Opt" \
+>   --process "$APP_NAME"
+> ```
+> Compare avg CPU ms/s (compare_cpu.py) and top-function sample weights
+> (top_time.py) across runs; never report energy figures that Power Profiler
+> could not produce.
 
 Attribute the bottleneck with specialized templates: `--template time` for hot call-trees, `alloc` with `top_categories.py` for allocation thrashing, `hitches` during UI interactions (scrolling, transitions, gestures) for render vs commit delays, `sys` for lock contention. See `references/templates.md` for the full template reference.
 
@@ -138,7 +160,7 @@ Optimization Delta (Post-Opt vs Pre-Opt):
 
 ## Direct CLI
 
-You may call `xctrace` directly instead of the bundled scripts. Run `xcrun xctrace record --help` and `xcrun xctrace export --help` for full options. You may also modify the bundled scripts for a specific task — keep the originals intact.
+You may call `xctrace` directly instead of the bundled scripts. Run `xcrun xctrace record --help` and `xcrun xctrace export --help` for full options. You may also adapt the bundled scripts for a specific task — **copy them to a temp directory first and modify the copies; never edit files inside the skill directory** (Rule 12).
 
 ```bash
 # Record an attached-process sample
@@ -158,3 +180,4 @@ xcrun xctrace export --input /tmp/macos-traces/power.trace \
 - `references/templates.md` — Instruments template picker (which template for which bottleneck).
 - `references/subsystems.md` — per-subsystem optimization patterns (audio, Metal, WebKit, UI/memory, media decoding).
 - `references/workload-reproduction.md` — how to reproduce the workload (Tier 0–2), including Accessibility-driven UI automation.
+- `references/device-commands.md` — exact process/launch/export commands, hardware template limits, Accessibility UI automation, and the script-copy rules.

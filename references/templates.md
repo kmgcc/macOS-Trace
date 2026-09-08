@@ -8,7 +8,7 @@ and headless `xctrace`.
 
 | Template | Short Name | Target Metrics & Export Schema | Use Case |
 | :--- | :--- | :--- | :--- |
-| `Power Profiler` | `power` | Instructions/sec (M/s), CPU/GPU/Display energy impacts (`ProcessSubsystemPowerImpact`). | Objective A/B benchmarking and power efficiency testing. |
+| `Power Profiler` | `power` | Instructions/sec (M/s), CPU/GPU/Display energy impacts (`ProcessSubsystemPowerImpact`). | Objective A/B benchmarking and power efficiency testing. **Apple Silicon only** — on Intel use `time` + `activity`. |
 | `Time Profiler` | `time` | CPU sample weights by thread, call-tree hotspots, main-thread blocking methods. | High CPU utilization, runaway threads, and hot function paths. |
 | `CPU Counters` | `counters` | IPC (instructions per cycle), L1/L2 cache misses, branch mispredictions. | Low-level computational and DSP algorithm performance bottlenecks. |
 

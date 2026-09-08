@@ -67,6 +67,7 @@ python3 "$SKILL_DIR/scripts/compare_elements.py" /tmp/macos-traces/01-baseline-p
 - **`references/templates.md`** — Instruments template picker (which template for which bottleneck).
 - **`references/subsystems.md`** — Per-subsystem optimization patterns (audio / Metal / WebKit / UI-memory / media decoding).
 - **`references/workload-reproduction.md`** — How to reproduce the workload (Tier 0–2), including Accessibility-driven UI automation.
+- **`references/device-commands.md`** — Exact process/launch/export commands, Apple Silicon template limits, and script-copy rules.
 
 ---
 

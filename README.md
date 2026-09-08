@@ -67,6 +67,7 @@ python3 "$SKILL_DIR/scripts/compare_elements.py" /tmp/macos-traces/01-baseline-p
 - **`references/templates.md`** — Instruments 模板选择（哪种瓶颈用哪个模板）。
 - **`references/subsystems.md`** — 各子系统调优知识（音频/Metal/WebKit/UI 内存/媒体解码）。
 - **`references/workload-reproduction.md`** — 负载如何复现（Tier 0–2，含 macOS 无障碍 UI 自动化）。
+- **`references/device-commands.md`** — 进程/启动/导出命令、Apple Silicon 模板限制与脚本复制规则。
 
 ---
 
