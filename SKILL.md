@@ -84,7 +84,7 @@ python3 "$SKILL_DIR/scripts/compare_elements.py" \
   /tmp/macos-traces/02-pre-opt-power.xml:"Active Pre-Opt"
 ```
 
-Attribute the bottleneck with specialized templates: `--template time` for hot call-trees, `alloc` with `top_categories.py` for allocation thrashing, `hitches` during scrolling for render vs commit delays, `sys` for lock contention. See `references/templates.md` for the full template reference.
+Attribute the bottleneck with specialized templates: `--template time` for hot call-trees, `alloc` with `top_categories.py` for allocation thrashing, `hitches` during UI interactions (scrolling, transitions, gestures) for render vs commit delays, `sys` for lock contention. See `references/templates.md` for the full template reference.
 
 > **If the target workload requires interaction or reproduction** (clicks, scrolling, gestures), **read `references/workload-reproduction.md` before recording** and decide which reproduction tier to use.
 
@@ -94,7 +94,7 @@ Apply minimal, surgical fixes based on findings:
 - **Real-time audio threads allocating heap memory?** Replace with pre-allocated lock-free ring buffers.
 - **WebKit IPC saturated?** Throttle state updates and switch to CSS transform animations.
 - **Metal fragment shader overdrawing on Retina?** Add dynamic resolution scaling or pause offscreen render loops.
-- **High-resolution image decoding spikes?** Adopt `CGImageSourceCreateThumbnailAtIndex` downsampling.
+- **Memory spikes from decoding large assets?** Downsample images at decode time (`CGImageSourceCreateThumbnailAtIndex`), decode video frames at playback size, or paginate PDF/large-document rendering instead of materializing full-resolution buffers.
 
 Rebuild the application.
 
@@ -151,5 +151,5 @@ xcrun xctrace export --input /tmp/macos-traces/power.trace \
 ## Reference Documents (load on demand)
 
 - `references/templates.md` — Instruments template picker (which template for which bottleneck).
-- `references/subsystems.md` — per-subsystem optimization patterns (audio, Metal, WebKit, UI/memory).
+- `references/subsystems.md` — per-subsystem optimization patterns (audio, Metal, WebKit, UI/memory, media decoding).
 - `references/workload-reproduction.md` — how to reproduce the workload (Tier 0–2), including Accessibility-driven UI automation.

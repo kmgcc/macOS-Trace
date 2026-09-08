@@ -66,7 +66,7 @@ Examples:
   # Profile allocations for 45s:
   $(basename "$0") --process MyApp --template alloc --duration 45s
 
-  # Profile UI animation hitches during scrolling:
+  # Profile UI animation hitches during UI interactions:
   $(basename "$0") --process MyApp --template hitches --duration 30s
 
   # Cold-launch binary under Time Profiler for 20s:

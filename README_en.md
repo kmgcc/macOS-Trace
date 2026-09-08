@@ -65,7 +65,7 @@ python3 "$SKILL_DIR/scripts/compare_elements.py" /tmp/macos-traces/01-baseline-p
 
 - **`SKILL.md`** — Core behavior: goal alignment, agent rules, the 4-phase loop.
 - **`references/templates.md`** — Instruments template picker (which template for which bottleneck).
-- **`references/subsystems.md`** — Per-subsystem optimization patterns (audio / Metal / WebKit / UI-memory).
+- **`references/subsystems.md`** — Per-subsystem optimization patterns (audio / Metal / WebKit / UI-memory / media decoding).
 - **`references/workload-reproduction.md`** — How to reproduce the workload (Tier 0–2), including Accessibility-driven UI automation.
 
 ---

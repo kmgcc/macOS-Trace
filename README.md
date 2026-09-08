@@ -65,7 +65,7 @@ python3 "$SKILL_DIR/scripts/compare_elements.py" /tmp/macos-traces/01-baseline-p
 
 - **`SKILL.md`** — 核心行为指令：目标对齐、执行规则、4 阶段闭环协议。
 - **`references/templates.md`** — Instruments 模板选择（哪种瓶颈用哪个模板）。
-- **`references/subsystems.md`** — 各子系统调优知识（音频/Metal/WebKit/UI 内存）。
+- **`references/subsystems.md`** — 各子系统调优知识（音频/Metal/WebKit/UI 内存/媒体解码）。
 - **`references/workload-reproduction.md`** — 负载如何复现（Tier 0–2，含 macOS 无障碍 UI 自动化）。
 
 ---

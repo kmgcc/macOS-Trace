@@ -25,6 +25,6 @@ These are battle-tested optimization patterns for macOS.
 
 ## UI & Memory Management
 
-- **Image downsampling**: Decoding high-resolution image assets (e.g., 3000x3000px or larger raw bitmaps) directly into `NSImage` allocates ~36MB of uncompressed bitmap memory per image. Downsample at decode time using `CGImageSourceCreateThumbnailAtIndex` with `kCGImageSourceThumbnailMaxPixelSize`.
+- **Large-asset decoding**: Materializing large assets at full resolution spikes memory — high-resolution images (e.g., 3000x3000px or larger raw bitmaps) cost ~36MB of uncompressed bitmap memory each when decoded into `NSImage`, full video frames are far larger, and whole PDF pages or documents are equally wasteful. Downsample images at decode time using `CGImageSourceCreateThumbnailAtIndex` with `kCGImageSourceThumbnailMaxPixelSize`, decode video frames at playback resolution, and render PDF pages on demand instead of loading them whole.
 - **SwiftUI body invalidation**: Root-level state changes trigger re-evaluation of downstream view bodies. Use `Time Profiler` to inspect repeated `View.body.getter` calls.
 - **Diagnosis**: Use `Allocations` with `scripts/top_categories.py` to identify large transient buffer spikes.
