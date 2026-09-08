@@ -61,6 +61,7 @@ Once targets are confirmed, proceed to Phase 2.
     ```bash
     find "${TMPDIR:-/tmp}" -maxdepth 1 -type f -name 'instruments*.ktrace' -delete 2>/dev/null || true
     ```
+11. **Resolve `SKILL_DIR` dynamically, never hardcode it**: the skill's install path varies by host and agent (Claude Code: `~/.claude/skills/macos-trace`; DSH: `~/.dsh/skills/macos-trace`; project scope: `<root>/.dsh/skills/macos-trace`). Locate it before calling bundled scripts, and reference scripts only via `"$SKILL_DIR/scripts/..."`.
 
 ---
 
@@ -70,7 +71,10 @@ Once targets are confirmed, proceed to Phase 2.
 
 ```bash
 APP_NAME="YourApp"
-SKILL_DIR="$HOME/.claude/skills/macos-trace"
+
+# Locate the skill install dir (path varies by host/agent; see Rule 11)
+SKILL_DIR="$(ls -d "$HOME/.claude/skills/macos-trace" "$HOME/.dsh/skills/macos-trace" 2>/dev/null | head -1)"
+[ -n "$SKILL_DIR" ] || SKILL_DIR="$(find "$HOME" -maxdepth 6 \( -type d -o -type l \) -name macos-trace 2>/dev/null | head -1)"
 
 # Idle baseline (workload paused, window visible)
 "$SKILL_DIR/scripts/run_trace.sh" --process "$APP_NAME" --template power --duration 60s --label "01-baseline"
@@ -101,6 +105,7 @@ Rebuild the application.
 ### Phase 4: Re-Test, Quantitative Review & Decision Gate
 
 ```bash
+# $SKILL_DIR = skill install dir, resolved as in Phase 2 (Rule 11)
 # Post-optimization active workload
 "$SKILL_DIR/scripts/run_trace.sh" --process "$APP_NAME" --template power --duration 60s --label "03-post-opt"
 
