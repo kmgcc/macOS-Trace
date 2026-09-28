@@ -51,6 +51,7 @@ Ask the agent to use `macos-trace` for a concrete scenario, such as playback dro
 - `references/templates.md` — Instruments selection guide and Xcode 27 additions.
 - `references/workload-reproduction.md` — choosing and verifying a reproduction path.
 - `references/device-commands.md` — process verification, xctrace discovery, capture, and export.
+- `references/storage-and-recovery.md` — temporary-file growth, deleted-open `.ktrace` recovery, and safe cleanup.
 - `references/xcode-agent-mcp.md` — optional Xcode MCP workflow and permission boundaries.
 - `references/subsystems.md` — audio, Metal, WebKit, UI, memory, and media decoding leads.
 

@@ -23,3 +23,5 @@ Create the output directory and name each trace for the scenario, run phase, and
 Before passing custom recording options, inspect the template defaults and save only the small reviewed change needed for the question. Before exporting, use the installed export help and narrow the time range, process, table, or fields to the evidence required. Keep raw traces out of chat and treat prompt text, user media metadata, file paths, and logs as sensitive.
 
 If a capture fails, report the exact tool/Xcode version, target, instrument, and relevant diagnostic, then adapt based on the error. Do not blindly retry with a different process, weaker permissions, or a broader capture.
+
+When a recording grows unexpectedly, uses substantial temporary storage, or does not exit after its time limit, load [storage and recovery](storage-and-recovery.md). `--output` selects the final trace location; it does not prove where Instruments services place intermediate files.
