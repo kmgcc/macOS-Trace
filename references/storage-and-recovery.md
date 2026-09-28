@@ -1,6 +1,6 @@
 # Trace Storage and Recovery
 
-Load this reference when a recording grows rapidly, the temporary volume loses space, `xctrace` remains alive after its time limit, or disk space does not return after a run.
+Load this reference when a recording grows rapidly, the temporary volume loses space, `xctrace` remains alive after its time limit, or disk space does not return after a run. The agent owns the diagnosis and cleanup decision; helper scripts can report state or stop the recorder they started, but cannot establish ownership of every shared Instruments file or service.
 
 ## Before recording
 
@@ -13,15 +13,17 @@ Load this reference when a recording grows rapidly, the temporary volume loses s
 
 ## Check for deleted files still holding disk space
 
-After the recorder exits, inspect open files with a link count below one:
+After each recording, the agent should inspect open files with a link count below one, even if a helper already printed a storage summary:
 
 ```bash
 lsof -nP +L1 2>/dev/null | grep -E 'DTServiceHub.*ktrace|ktrace.*DTServiceHub'
 ```
 
-`+L1` selects files whose directory entry has been removed while a process still has the file open. Record each matching PID, path, and size. Confirm the process executable and start time with `ps -p <PID> -o pid=,lstart=,command=`. Check for other active `xctrace` or Instruments recordings before stopping a shared service.
+`+L1` selects files whose directory entry has been removed while a process still has the file open. Record each matching PID, path, and size. Confirm the process executable and start time with `ps -p <PID> -o pid=,lstart=,command=`. Check for other active `xctrace` or Instruments recordings before stopping a shared service. Also check `df -h` on the same volumes before and after any recovery action.
 
-If the exact `DTServiceHub` PID is holding a deleted `.ktrace` and no active recording depends on it, ask that PID to exit and verify whether the handle closes:
+Decide from the evidence whether the handle belongs to a completed recording from this task. Do not infer ownership from the service name, file age, or the fact that this agent ran `xctrace`. If the service or recording may belong to the user or another task, or its state is unclear, ask the user before stopping it.
+
+If the exact `DTServiceHub` PID is holding a deleted `.ktrace`, its executable and start time are verified, the original recorder has exited, and no active recording depends on it, send `SIGTERM` to that exact PID and verify whether the handle closes:
 
 ```bash
 kill -TERM <PID>
@@ -29,7 +31,7 @@ sleep 3
 lsof -nP +L1 2>/dev/null | grep -E 'DTServiceHub.*ktrace|ktrace.*DTServiceHub'
 ```
 
-Only if the same verified stale PID still holds the deleted trace, escalate against that PID:
+Only if the same verified stale PID still holds the deleted trace after `SIGTERM`, and the task's process rules or user authorization allow it, escalate against that exact PID:
 
 ```bash
 kill -KILL <PID>
@@ -39,8 +41,8 @@ Do not use `killall -9 DTServiceHub` as routine cleanup. The service may own ano
 
 ## Clean named temporary files and caches
 
-- Do not run a global `find ... -delete` for `instruments*.ktrace`. First confirm the recorder is finished, identify the specific files created by this run, and check whether any process still has them open. Remove only the exact stale paths that are not needed as evidence.
-- Do not remove the entire `com.apple.dt.InstrumentsCLI` cache automatically. Inspect its size and contents, confirm no Instruments activity is using it, and clean it only when the files are verified as disposable. Cache cleanup is separate from releasing deleted-open file descriptors.
+- Do not run a global `find ... -delete` for `instruments*.ktrace`. First confirm the recorder is finished, identify the specific files created by this run, and check whether any process still has them open. Remove only the exact stale paths that are not needed as evidence. If the file's ownership or retention value is unclear, ask the user instead of guessing.
+- Do not remove the entire `com.apple.dt.InstrumentsCLI` cache automatically. Inspect its size and contents, confirm no Instruments activity is using it, and clean only exact files verified as disposable. Ask the user if ownership or value is unclear. Cache cleanup is separate from releasing deleted-open file descriptors.
 - After cleanup, check the recorder and service processes, rerun `lsof +L1`, and compare free space on the same volume. Report the observed values; do not infer reclaimed space from a successful `rm` alone.
 
 ## If the recorder does not finish
