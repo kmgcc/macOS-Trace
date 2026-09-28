@@ -1,81 +1,25 @@
-# Command Reference (macOS)
+# Process and xctrace Reference
 
-Load this file when profiling a macOS app and you need the exact process /
-launch / export invocation, or when the target process is not behaving as
-expected. It captures real pitfalls so you do not have to re-discover them by
-trial and error.
+Load when choosing a target process, recording mode, or export path. Prefer commands reported by the active Xcode installation; examples below illustrate intent and may need adjustment to local CLI syntax.
 
-## Hardware & Template Compatibility
+## Discover the current toolchain
 
-- **`Power Profiler` requires Apple Silicon** (M1/M2/M3/M4). On Intel Macs the
-  energy counters are unavailable; use `--template time` (hot call-trees) +
-  `--template activity` (per-process CPU ms/s) instead.
-- `Time Profiler` / `Activity Monitor` / `Allocations` work on all hardware.
+- Check the selected Xcode and `xctrace` versions before relying on an Instruments 27 feature. Multiple Xcode installations may expose different capabilities.
+- Inspect `xcrun xctrace list templates`, `xcrun xctrace record --help`, and `xcrun xctrace export --help`. For Xcode 27 recording settings, use `xcrun xctrace record --show-recording-options` with the relevant template/instrument form shown by the installed help.
+- Verify the target OS and hardware before interpreting instrument availability or counters. Power and energy metrics vary by hardware and OS; do not infer unavailable values.
+- Check whether an instrument supports attaching, launching, a specific device, or only some target types. Let help and the selected template determine valid options.
 
-Interpretation: Time Profiler gives **attribution** (hot functions, which thread),
-Activity Monitor gives **magnitude** (CPU ms/s; 1000 ms/s ≈ one full core).
+## Select and verify the target
 
-## Attaching to the Correct Process
+- Identify the app's exact process name, PID, executable path, and build. When multiple instances exist, inspect each candidate rather than attaching to the newest match by default.
+- Choose attach for an already-running workload when that preserves the scenario. Choose profiler-launched execution when launch behavior itself is under test. Follow repository-specific locks, data ownership, signing, and process rules.
+- Some hardened or production-signed apps do not allow sampling attachment. Diagnose the permission/signing boundary and use an authorized development build or supported launch mode; do not weaken signing or entitlements silently.
+- Verify the process and user scenario during capture. A recorder that exits successfully can still have captured the wrong process or no useful workload.
 
-Prefer `--process <name>` (attach) for an already-running app, or
-`--launch <binary_path>` for a cold start.
+## Capture and export
 
-```bash
-# Attach by name (resolves PID via pgrep)
-"$SKILL_DIR/scripts/run_trace.sh" --process MyApp --template time --duration 60s
+Create the output directory and name each trace for the scenario, run phase, and relevant variant. Prefer the CLI when it preserves the question and exact scope; open the trace in Instruments when track relationships, inspectors, or run comparison require visual inspection.
 
-# Attach to the latest PID when multiple instances match
-pgrep -x MyApp          # exact process name
-pgrep -f MyApp          # full command line match (fallback)
-```
+Before passing custom recording options, inspect the template defaults and save only the small reviewed change needed for the question. Before exporting, use the installed export help and narrow the time range, process, table, or fields to the evidence required. Keep raw traces out of chat and treat prompt text, user media metadata, file paths, and logs as sensitive.
 
-If multiple processes match a name, `run_trace.sh` attaches to the latest PID
-and prints a warning — verify you captured the right instance.
-
-## Launching With Arguments (Tier 1 reproduction)
-
-```bash
-# Launch a binary directly with arguments (deterministic, no clicking)
-/Applications/MyApp.app/Contents/MacOS/MyApp --scenario myState --flag
-# ...then attach-sample it:
-"$SKILL_DIR/scripts/run_trace.sh" --process MyApp --template time --duration 60s
-
-# Or one-shot cold launch under the profiler
-xcrun xctrace record --template 'Time Profiler' --time-limit 60s \
-  --output /tmp/macos-traces/run.trace \
-  --launch -- /path/to/MyApp.app/Contents/MacOS/MyApp --scenario myState
-```
-
-## Window State Matters
-
-macOS throttles rendering for occluded or minimized windows
-(`NSWindowOcclusionState`) — an occluded window produces falsely low GPU/CPU
-readings. Keep the target window in the foreground during recordings.
-
-## Accessibility-Driven UI Automation (Tier 2)
-
-macOS UI automation works via Accessibility (System Events / osascript), because
-the agent and the app share the same host:
-
-```bash
-osascript -e 'tell application "System Events" to tell process "MyApp" to click button "Play"'
-osascript -e 'tell application "System Events" to tell process "MyApp" to get name of every button of window 1'
-```
-
-Requires **Accessibility permission** for the automation host; without it these
-calls fail silently or error. See `references/workload-reproduction.md` for the
-full Tier 0–2 selection logic.
-
-## Adapting Scripts (allowed, with rules)
-
-The bundled scripts are meant to be adapted for specific tasks. Rules:
-
-1. **Never edit files inside the skill directory** (`SKILL_DIR/scripts/…`).
-2. **Copy to a temp directory first, then modify the copy**:
-   ```bash
-   mkdir -p /tmp/my-trace-tools
-   cp "$SKILL_DIR"/scripts/*.py /tmp/my-trace-tools/
-   # edit /tmp/my-trace-tools/top_time.py, then run:
-   python3 /tmp/my-trace-tools/top_time.py ...
-   ```
-3. Keep the original scripts untouched so every user/run sees the same baseline.
+If a capture fails, report the exact tool/Xcode version, target, instrument, and relevant diagnostic, then adapt based on the error. Do not blindly retry with a different process, weaker permissions, or a broader capture.

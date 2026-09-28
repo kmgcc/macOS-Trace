@@ -1,183 +1,44 @@
 ---
 name: macos-trace
-description: "Autonomous closed-loop performance optimization engine for macOS applications using xctrace and Xcode Instruments. Handles the full lifecycle: aligning optimization targets with the user, headless diagnostic trace capture, isolating hotspots, implementing code fixes, re-testing with differential A/B verification, and iterating until performance goals are met without manual GUI intervention. Use when the user reports high CPU usage, memory growth or leaks, UI stutter or dropped frames, slow cold launch, audio dropouts, or thermal issues in a macOS application, and asks to profile, benchmark, or optimize it."
-compatibility: "macOS 12+, Xcode Command Line Tools, Python 3.8+"
+description: "Agent-native runbook for evidence-based profiling and optimization of native macOS apps with xctrace and Xcode Instruments. Use when investigating CPU or energy use, memory growth or leaks, UI hitches, slow launch, concurrency stalls, audio dropouts, or thermal behavior. Selects tools and workload reproduction to fit the reported issue; scripts are optional helpers."
+compatibility: "macOS with Xcode or Xcode Command Line Tools providing xctrace; Python 3.8+ only for optional helper scripts"
 license: MIT
 metadata:
   author: kmgcc
-  version: "1.4.0"
+  version: "1.5.0"
 ---
 
-# macOS-Trace: Autonomous Application Performance Optimization
+# macOS-Trace
 
-`macOS-Trace` is a closed-loop performance optimization engine for native macOS applications (SwiftUI, AppKit, Metal, CoreAudio, WebKit, native binaries). Its core objective is to eliminate manual Instruments GUI interaction: an agent aligns on targets, captures headless traces, isolates hotspots, applies code fixes, re-tests with differential benchmarking, and iterates until performance targets are verified with empirical data.
+An agent-native runbook for investigating performance in native macOS apps. Use judgment to choose the smallest useful measurement, reproduce the user's real workload, interpret the trace, and verify any change. `xctrace` and Instruments are the measurement tools; bundled scripts are optional helpers for repeatable exports and comparisons, not a required workflow.
 
----
+## Runbook
 
-## Phase 1: User Goal Alignment (Pre-Flight Questionnaire)
+1. **Understand the report.** Identify the affected app, user-visible symptom, reproduction steps, environment, and what evidence would show improvement. Ask only for missing details that materially change the measurement. Do not impose generic numeric targets or assume that every report needs an optimization loop.
+2. **Inspect the actual target and tools.** Read the repository's agent instructions. Establish the exact app process, binary/build, macOS and hardware, active Xcode selection, and `xctrace` version. Check the installed template/instrument names and relevant CLI help before recording; Xcode and OS versions expose different capabilities. Never start or stop an app process without following the repository's process and data-safety rules.
+3. **Choose a measurement for a hypothesis.** Consult `references/templates.md` and select the least intrusive instrument or combination that can distinguish likely causes. Discover recording options from the installed tool instead of assuming fixed template aliases or options. Use GUI Instruments when its timelines, inspectors, or comparison views make the evidence clearer; use CLI capture/export when that is more direct.
+4. **Reproduce the real workload.** Use `references/workload-reproduction.md` when interaction or timing matters. Prefer the user's actual active scenario for acceptance. Decide whether automation, a launch hook, or a user-triggered interaction is trustworthy for this particular app; do not force a universal tier or treat an ignored launch argument as a successful run. An idle capture is an optional control, not a substitute for the workload. Keep compared runs aligned on build, hardware, OS, window state, inputs, and capture scope, and note unavoidable differences.
+5. **Capture only useful evidence.** Attach to the correct process or launch the intended binary as the question requires. Keep a rendering workload visible when frame or GPU behavior matters. Record enough of the scenario to expose its pattern, with duration and repetition chosen for the symptom and signal quality. Store traces in a task-appropriate location; treat traces and exports as potentially sensitive. Do not print entire trace bundles or huge exports into chat.
+6. **Interpret before editing.** Connect the symptom to the relevant track, interval, task, thread, allocation, wait, or call tree. Cross-check a suspected hot path against source and call sites. Separate observed evidence from inference and avoid changing code when the trace does not support a specific hypothesis.
+7. **Make a focused change and compare.** Follow project instructions for edits and validation. Re-run the same meaningful user scenario with comparable capture settings and compare before/after evidence. Use an idle or unrelated scenario only as a control when it answers a separate question. If evidence is noisy or the result is inconclusive, explain the limit and refine the measurement rather than claiming success.
+8. **Report and preserve.** Summarize the scenario, instruments, build/environment, observed bottleneck, change, measured result, and unverified layers. Keep or remove trace artifacts according to the user's/repository's retention rules; do not delete user data or recordings without a clear basis.
 
-Before modifying code or collecting traces, align with the user on optimization targets and success criteria. Use an interactive modal if available (`ask_question`, option lists); otherwise ask directly with structured options.
+## Xcode 27 and Instruments
 
-1. **Primary Optimization Objective**:
-   - A: Reduce CPU utilization, power consumption, and thermal throttling.
-   - B: Lower memory footprint / transient allocation spikes / eliminate leaks.
-   - C: Eliminate UI frame stuttering and dropped frames (Hitches).
-   - D: Accelerate cold launch time.
+When Xcode 27 is installed, load `references/templates.md` for its new instruments and recording workflow. Capabilities depend on the installed Xcode and target OS; discover them at runtime. In particular, Swift Executors details require OS 27, and the Foundation Models instrument is for Apple's Foundation Models framework, not a generic profiler for remote model providers.
 
-2. **Specific Performance Targets (recommended defaults)**:
-   - **CPU / Energy**: idle < 20 M/s instructions, CPU Impact < 0.5; active < 100 M/s (or reduce 30–50%).
-   - **Memory**: resident RAM < 150 MB (utilities/audio) / < 300 MB (rich UI); allocation rate < 500 events/sec steady-state; 0 persistent leaks.
-   - **UI Smoothness**: hitch ratio < 5.0 ms/s (acceptable), < 1.0 ms/s (fluid/no dropped frames).
-   - **Launch Time**: time to first frame < 400 ms (excellent), < 800 ms (acceptable).
+For optional Xcode coding/build/test integration through MCP, load `references/xcode-agent-mcp.md`. MCP complements profiling; it does not replace Instruments traces. Do not enable an MCP server or widen its permissions as an implicit profiling step.
 
-3. **Benchmark User Scenario**: ask which specific screen, interaction, or workload to benchmark.
+## Optional helpers
 
-Once targets are confirmed, proceed to Phase 2.
+- Use a bundled script only if it fits the question or provides a repeatable export/comparison that is otherwise tedious. Resolve the skill directory dynamically and inspect the script's usage first.
+- Never edit scripts inside the installed skill. If a task truly needs a one-off parser change, copy only the relevant helper to a task scratch directory and adapt the copy.
+- For an existing project-specific profiler workflow, follow its instructions and data/process ownership boundaries before using generic examples here.
 
----
+## References (load as needed)
 
-## Scope and Prerequisites
-
-- **Target platform**: macOS native desktop apps only (SwiftUI, AppKit, Metal, CoreAudio / AVAudioEngine, WebKit host views, native CLI executables). Does not support iOS simulators, remote mobile devices, or browser-only web apps.
-- **Xcode tooling**: macOS 12+, full Xcode or Xcode Command Line Tools (`xcrun xctrace version`).
-- **Hardware metrics**: `Power Profiler` and energy impact counters require Apple Silicon (M1/M2/M3/M4).
-- **Python**: 3.8+ (standard library only, zero pip dependencies).
-- **Process permissions**: debug builds or binaries with `get-task-allow` entitlement are required for `--attach <PID>` under Hardened Runtime.
-
----
-
-## Rules for Agents
-
-1. **Establish a baseline first**: always capture an idle baseline (app open, workload paused) before the active workload. Compute `Delta = Active - Baseline`.
-2. **Verify target state before recording**: confirm the process exists (`pgrep -x <name>`) and the target feature is actively executing during the recording window.
-3. **Keep the window in foreground**: macOS throttles rendering/display links for occluded or minimized windows (`NSWindowOcclusionState`) — an occluded window produces falsely low GPU/CPU readings.
-4. **Use equal test parameters**: identical durations (default 60s), display scales, window sizes, and input data. Never compare Debug vs Release builds.
-5. **Zero third-party Python dependencies**: bundled scripts use the standard library only (`compare_elements.py`, `parse_power.py`, `top_categories.py`, `top_time.py`, `activity_cpu.py`, `compare_cpu.py`).
-6. **Save outputs to `/tmp/macos-traces/`**: timestamped, scenario-tagged filenames.
-7. **Protect context budget**: never dump raw `.trace` bundles, call-trees, or unparsed XML into the conversation — they can be hundreds of MB. Always stream/filter/rank via the bundled scripts before reading.
-8. **Focus on primary bottlenecks**: profile first to confirm the dominant contributor; don't scatter micro-optimizations across innocent utilities.
-9. **Never silently alter UI, visual effects, or core behavior**: if an optimization affects visual fidelity or essential behavior, formally ask the user first and articulate the exact before/after tradeoff with quantified expected gain.
-10. **Clean up recording artifacts**: `run_trace.sh` auto-cleans the several-GB transient kernel traces (`instruments*.ktrace` in `$TMPDIR`). When running `xctrace` directly, clean them yourself before concluding:
-    ```bash
-    find "${TMPDIR:-/tmp}" -maxdepth 1 -type f -name 'instruments*.ktrace' -delete 2>/dev/null || true
-    ```
-11. **Resolve `SKILL_DIR` dynamically, never hardcode it**: the skill's install path varies by host and agent (Claude Code: `~/.claude/skills/macos-trace`; DSH: `~/.dsh/skills/macos-trace`; project scope: `<root>/.dsh/skills/macos-trace`). Locate it before calling bundled scripts, and reference scripts only via `"$SKILL_DIR/scripts/..."`.
-12. **Never edit files inside the skill directory**: if you need to adapt a bundled script, copy it to a temp directory first (e.g. `/tmp/my-trace-tools/`), modify the copy, and run the copy. Keep the originals untouched so every run sees the same baseline.
-13. **Check the hardware before choosing Power Profiler**: `Power Profiler` and energy counters require **Apple Silicon** (M1/M2/M3/M4). On Intel Macs use `--template time` (hot call-trees) + `--template activity` (per-process CPU ms/s) as the fallback pair, and never invent energy figures. See `references/device-commands.md` for exact process/launch commands.
-
----
-
-## The 4-Phase Optimization Protocol
-
-### Phase 2: Diagnostic Profiling & Attribution
-
-```bash
-APP_NAME="YourApp"
-
-# Locate the skill install dir (path varies by host/agent; see Rule 11)
-SKILL_DIR="$(ls -d "$HOME/.claude/skills/macos-trace" "$HOME/.dsh/skills/macos-trace" 2>/dev/null | head -1)"
-[ -n "$SKILL_DIR" ] || SKILL_DIR="$(find "$HOME" -maxdepth 6 \( -type d -o -type l \) -name macos-trace 2>/dev/null | head -1)"
-
-# Idle baseline (workload paused, window visible)
-"$SKILL_DIR/scripts/run_trace.sh" --process "$APP_NAME" --template power --duration 60s --label "01-baseline"
-
-# Active workload (user triggers the scenario in the app while this records)
-"$SKILL_DIR/scripts/run_trace.sh" --process "$APP_NAME" --template power --duration 60s --label "02-pre-opt"
-
-# Pre-optimization delta
-python3 "$SKILL_DIR/scripts/compare_elements.py" \
-  /tmp/macos-traces/01-baseline-power.xml:"Idle Baseline" \
-  /tmp/macos-traces/02-pre-opt-power.xml:"Active Pre-Opt"
-```
-
-> **Non-Apple-Silicon fallback** (Power Profiler requires Apple Silicon): use Time
-> Profiler for attribution and Activity Monitor for magnitude, then compare those
-> numbers:
-> ```bash
-> "$SKILL_DIR/scripts/run_trace.sh" --process "$APP_NAME" --template time --duration 60s --label "01-baseline"
-> "$SKILL_DIR/scripts/run_trace.sh" --process "$APP_NAME" --template time --duration 60s --label "02-pre-opt"
-> python3 "$SKILL_DIR/scripts/top_time.py" /tmp/macos-traces/01-baseline-*-time.xml 15 --leaf
-> python3 "$SKILL_DIR/scripts/top_time.py" /tmp/macos-traces/02-pre-opt-*-time.xml 15 --leaf
->
-> "$SKILL_DIR/scripts/run_trace.sh" --process "$APP_NAME" --template activity --duration 30s --label "01-baseline"
-> "$SKILL_DIR/scripts/run_trace.sh" --process "$APP_NAME" --template activity --duration 30s --label "02-pre-opt"
-> python3 "$SKILL_DIR/scripts/compare_cpu.py" \
->   /tmp/macos-traces/01-baseline-*-actmon.xml:"Idle Baseline" \
->   /tmp/macos-traces/02-pre-opt-*-actmon.xml:"Active Pre-Opt" \
->   --process "$APP_NAME"
-> ```
-> Compare avg CPU ms/s (compare_cpu.py) and top-function sample weights
-> (top_time.py) across runs; never report energy figures that Power Profiler
-> could not produce.
-
-Attribute the bottleneck with specialized templates: `--template time` for hot call-trees, `alloc` with `top_categories.py` for allocation thrashing, `hitches` during UI interactions (scrolling, transitions, gestures) for render vs commit delays, `sys` for lock contention. See `references/templates.md` for the full template reference.
-
-> **If the target workload requires interaction or reproduction** (clicks, scrolling, gestures), **read `references/workload-reproduction.md` before recording** and decide which reproduction tier to use.
-
-### Phase 3: Targeted Code Modification
-
-Apply minimal, surgical fixes based on findings:
-- **Real-time audio threads allocating heap memory?** Replace with pre-allocated lock-free ring buffers.
-- **WebKit IPC saturated?** Throttle state updates and switch to CSS transform animations.
-- **Metal fragment shader overdrawing on Retina?** Add dynamic resolution scaling or pause offscreen render loops.
-- **Memory spikes from decoding large assets?** Downsample images at decode time (`CGImageSourceCreateThumbnailAtIndex`), decode video frames at playback size, or paginate PDF/large-document rendering instead of materializing full-resolution buffers.
-
-Rebuild the application.
-
-### Phase 4: Re-Test, Quantitative Review & Decision Gate
-
-```bash
-# $SKILL_DIR = skill install dir, resolved as in Phase 2 (Rule 11)
-# Post-optimization active workload
-"$SKILL_DIR/scripts/run_trace.sh" --process "$APP_NAME" --template power --duration 60s --label "03-post-opt"
-
-# Compare Pre-Opt vs Post-Opt against Baseline
-python3 "$SKILL_DIR/scripts/compare_elements.py" \
-  /tmp/macos-traces/01-baseline-power.xml:"Idle Baseline" \
-  /tmp/macos-traces/02-pre-opt-power.xml:"Active Pre-Opt" \
-  /tmp/macos-traces/03-post-opt-power.xml:"Active Post-Opt"
-```
-
-Example Decision Output:
-
-```text
-Scenario                    Sec  CPU Avg  CPU Max  Display  GPU Avg  Total Instr    Instr M/s
-============================================================================================
-Idle Baseline                60     0.15     0.80     0.05     0.00        1.02G         17.0
-Active Pre-Opt               60     2.40     4.80     1.10     1.50       16.20G        270.0
-Active Post-Opt              60     0.65     1.20     0.25     0.10        4.80G         80.0
-----------------------------------------------------------------------------------------------
-Optimization Delta (Post-Opt vs Pre-Opt):
-  Instruction throughput: -70.4% (80.0 vs 270.0 M/s)
-  CPU Average Impact:     -72.9% (0.65 vs 2.40)
-```
-
-**Decision Gate**: target met → present the comparison table and conclude. Target not met → keep the current optimization, isolate the next hotspot, repeat Phases 3–4.
-
-**Post-Report Cleanup**: after the user accepts the report, delete accumulated `.trace` bundles under `/tmp/macos-traces/` (each can be tens of GB) unless the user asks to keep them.
-
----
-
-## Direct CLI
-
-You may call `xctrace` directly instead of the bundled scripts. Run `xcrun xctrace record --help` and `xcrun xctrace export --help` for full options. You may also adapt the bundled scripts for a specific task — **copy them to a temp directory first and modify the copies; never edit files inside the skill directory** (Rule 12).
-
-```bash
-# Record an attached-process sample
-xcrun xctrace record --template 'Time Profiler' --time-limit 60s \
-  --output /tmp/macos-traces/run.trace --attach $(pgrep -x YourApp)
-
-# Export the Power Impact table
-xcrun xctrace export --input /tmp/macos-traces/power.trace \
-  --xpath "/trace-toc/run[@number='1']/data/table[@schema='ProcessSubsystemPowerImpact']" \
-  > /tmp/macos-traces/power.xml
-```
-
----
-
-## Reference Documents (load on demand)
-
-- `references/templates.md` — Instruments template picker (which template for which bottleneck).
-- `references/subsystems.md` — per-subsystem optimization patterns (audio, Metal, WebKit, UI/memory, media decoding).
-- `references/workload-reproduction.md` — how to reproduce the workload (Tier 0–2), including Accessibility-driven UI automation.
-- `references/device-commands.md` — exact process/launch/export commands, hardware template limits, Accessibility UI automation, and the script-copy rules.
+- `references/templates.md` — choose Instruments by symptom; includes Xcode 27 additions.
+- `references/workload-reproduction.md` — selecting and validating a real workload reproduction path.
+- `references/device-commands.md` — process selection, xctrace capability discovery, capture and export.
+- `references/xcode-agent-mcp.md` — optional Xcode 27 MCP integration and safe capability discovery.
+- `references/subsystems.md` — optimization patterns for audio, Metal, WebKit, UI, memory, and media decoding.
